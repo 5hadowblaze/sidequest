@@ -20,17 +20,18 @@ def test_discover_rejects_empty_location(client: TestClient) -> None:
     assert "location" in response.json()["detail"].lower()
 
 
-def test_discover_without_tavily_key_returns_mock_events(
+def test_discover_without_tavily_key_returns_demo_events(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.delenv("TAVILY_API_KEY", raising=False)
+    monkeypatch.delenv("USE_DEMO_DATA", raising=False)
     response = client.get("/discover", params={"location": "Austin"})
     assert response.status_code == 200
     payload = response.json()
     assert payload["location"] == "Austin"
-    assert payload["source"] == "mock"
+    assert payload["source"] == "demo"
     assert len(payload["events"]) >= 1
-    assert payload["events"][0]["id"].startswith("mock_")
+    assert payload["events"][0]["id"].startswith("demo_")
 
 
 @patch("discover.TavilyClient")
@@ -41,6 +42,7 @@ def test_discover_with_tavily_mock(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("TAVILY_API_KEY", "test-tavily-key")
+    monkeypatch.delenv("USE_DEMO_DATA", raising=False)
     mock_tavily_cls.return_value = mock_tavily_search
     response = client.get("/discover", params={"location": "Austin, TX"})
     assert response.status_code == 200
@@ -89,6 +91,47 @@ def test_discover_prometheux_config_error_maps_to_503(
     mock_discover.side_effect = PrometheuxConfigError("missing token")
     response = client.get("/discover", params={"location": "Austin"})
     assert response.status_code == 503
+
+
+@patch("main.discover_local_events")
+def test_discover_prometheux_engine_busy_returns_retry_after(
+    mock_discover: MagicMock,
+    client: TestClient,
+    api_env: None,
+) -> None:
+    from prometheux_filter import PrometheuxEngineBusyError
+
+    mock_discover.side_effect = PrometheuxEngineBusyError(
+        "engine busy after retries",
+        retry_after_seconds=30,
+    )
+    response = client.get(
+        "/discover",
+        params={"location": "Austin", "budget": 100, "diet": "vegan"},
+    )
+    assert response.status_code == 503
+    assert response.headers.get("retry-after") == "30"
+
+
+def test_plan_demo_mode_without_api_keys(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    for key in ("GEMINI_API_KEY", "TAVILY_API_KEY", "PMTX_TOKEN"):
+        monkeypatch.delenv(key, raising=False)
+    monkeypatch.setenv("USE_DEMO_DATA", "true")
+    response = client.post(
+        "/plan",
+        json={
+            "location": "Austin, TX",
+            "budget": 100,
+            "diet": "vegetarian",
+            "activities": "music, outdoor",
+        },
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert len(payload["itinerary"]) >= 3
+    assert payload["filter_stats"]["filter_method"] == "demo"
 
 
 def test_plan_missing_env_vars_returns_503(

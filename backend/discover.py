@@ -9,6 +9,7 @@ from typing import Any
 
 from tavily import TavilyClient
 
+from demo_data import build_demo_discover_response, is_demo_mode_forced
 from event_images import image_for_event
 from models import (
     CandidateItem,
@@ -258,6 +259,10 @@ def discover_local_events(
     if not location:
         raise ValueError("location is required")
 
+    if is_demo_mode_forced():
+        logger.info("USE_DEMO_DATA=true — serving demo discover data only")
+        return build_demo_discover_response(location, context)
+
     api_key = os.environ.get("TAVILY_API_KEY")
     if not api_key:
         center = _city_center(location)
@@ -275,25 +280,12 @@ def discover_local_events(
     try:
         events = _fetch_tavily_events(location, context)
     except Exception as exc:
-        logger.warning("Tavily discover failed (%s) — falling back to mock events", exc)
-        center = _city_center(location)
-        return DiscoverResponse(
-            location=location,
-            events=_mock_events(location),
-            source="mock",
-            center_lat=center[0],
-            center_lng=center[1],
-        )
+        logger.warning("Tavily discover failed (%s) — falling back to demo data", exc)
+        return build_demo_discover_response(location, context)
 
     if not events:
-        center = _city_center(location)
-        return DiscoverResponse(
-            location=location,
-            events=_mock_events(location),
-            source="mock",
-            center_lat=center[0],
-            center_lng=center[1],
-        )
+        logger.info("Tavily returned no events — falling back to demo data")
+        return build_demo_discover_response(location, context)
 
     center = _city_center(location)
     filter_stats: FilterStats | None = None
@@ -321,7 +313,8 @@ def discover_local_events(
         except (PrometheuxConfigError, PrometheuxEngineBusyError, PrometheuxSDKError):
             raise
         except Exception as exc:
-            raise PrometheuxSDKError(f"Prometheux discover filter failed: {exc}") from exc
+            logger.warning("Prometheux discover filter failed (%s) — demo fallback", exc)
+            return build_demo_discover_response(location, context)
 
     return DiscoverResponse(
         location=location,
@@ -331,6 +324,7 @@ def discover_local_events(
         center_lng=center[1],
         filter_stats=filter_stats,
     )
+
 
 
 def parse_calendar_slots(raw: str | None) -> list[dict[str, str]]:

@@ -14,6 +14,7 @@ from langfuse import get_client, observe, propagate_attributes
 from tavily import TavilyClient
 
 from format_output import write_cited_md as persist_cited_md
+from demo_data import build_demo_plan_result, is_demo_mode_forced
 from models import CandidateItem, FilterStats, ItineraryItem, PlanRequest, PlanResult
 from prometheux_filter import FilterResult, filter_candidates
 
@@ -246,6 +247,10 @@ def _current_trace_id() -> str | None:
 
 @observe(name="weekend-planner", as_type="agent")
 def run_weekend_planner(request: PlanRequest) -> PlanResult:
+    if is_demo_mode_forced():
+        logger.info("USE_DEMO_DATA=true — serving demo plan only")
+        return build_demo_plan_result(request)
+
     session_id = str(uuid.uuid4())
     metadata = {
         "location": request.location[:200],
@@ -253,10 +258,25 @@ def run_weekend_planner(request: PlanRequest) -> PlanResult:
     }
 
     with propagate_attributes(session_id=session_id, metadata=metadata):
-        raw = search_weekend_options(request)
-        filter_result = filter_with_prometheux(raw, request)
+        try:
+            raw = search_weekend_options(request)
+        except Exception as exc:
+            logger.warning("Tavily plan search failed (%s) — demo fallback", exc)
+            return build_demo_plan_result(request)
+
+        try:
+            filter_result = filter_with_prometheux(raw, request)
+        except Exception as exc:
+            logger.warning("Prometheux plan filter failed (%s) — demo fallback", exc)
+            return build_demo_plan_result(request)
+
         filtered = filter_result.candidates
-        itinerary = build_itinerary(filtered, request)
+        try:
+            itinerary = build_itinerary(filtered, request)
+        except Exception as exc:
+            logger.warning("Itinerary build failed (%s) — demo fallback", exc)
+            return build_demo_plan_result(request)
+
         filter_stats = FilterStats(
             candidates_in=filter_result.candidates_in,
             candidates_out=filter_result.candidates_out,

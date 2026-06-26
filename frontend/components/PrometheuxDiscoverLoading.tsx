@@ -84,6 +84,7 @@ export default function PrometheuxDiscoverLoading({
         role="status"
         aria-live="polite"
         aria-label={message}
+        data-demo-target="discover-loading"
       >
         <div className="prometheux-discover-card">{content}</div>
       </div>
@@ -96,6 +97,7 @@ export default function PrometheuxDiscoverLoading({
       role="status"
       aria-live="polite"
       aria-label={message}
+      data-demo-target="discover-panel"
     >
       {content}
     </div>

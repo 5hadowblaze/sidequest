@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import BrandLogo from "@/components/BrandLogo";
+import DemoRunner, { RunDemoButton, type DemoActions } from "@/components/DemoRunner";
 import PipelineFlowPopover from "@/components/PipelineFlowPopover";
 import DiscoverStatsHeader from "@/components/DiscoverStatsHeader";
 import WelcomeSplash from "@/components/WelcomeSplash";
@@ -14,6 +15,7 @@ import ProfileOnboarding from "@/components/ProfileOnboarding";
 import PrometheuxDiscoverLoading from "@/components/PrometheuxDiscoverLoading";
 import UserMenu from "@/components/UserMenu";
 import { useAuth } from "@/lib/auth";
+import { activateDemoSession } from "@/lib/demo-session";
 import { PipelinePhaseProvider } from "@/lib/pipeline-context";
 import { loadCalendarSlots } from "@/lib/calendar";
 import { discoverQueryFromProfile, DiscoverError, fetchDiscoverEvents } from "@/lib/discover-client";
@@ -25,6 +27,10 @@ import {
   savePlanConfirmation,
 } from "@/lib/plan-confirmation";
 import { getProfileStore, createDefaultProfile } from "@/lib/profile";
+import {
+  clearForceOnboarding,
+  shouldForceOnboarding,
+} from "@/lib/onboarding-session";
 import { isDemoPresentationSource } from "@/lib/presentation";
 import { loadSeedEvents, mergeDiscoverEvents } from "@/lib/seed-events";
 import { QUICK_SEARCHES } from "@/lib/quick-searches";
@@ -42,6 +48,7 @@ export default function SidequestExplorer() {
     user,
     loading: authLoading,
     signInWithGoogle,
+    signInAsDemo,
     signOut,
     isMockAuth,
     signInError,
@@ -105,6 +112,51 @@ export default function SidequestExplorer() {
     };
   });
 
+  const demoActions = useMemo<DemoActions>(
+    () => ({
+      ensureAuth: async () => {
+        activateDemoSession();
+        if (!stateRef.current.user) {
+          signInAsDemo();
+          await new Promise((r) => setTimeout(r, 400));
+        }
+      },
+      ensureProfile: async () => {
+        const uid = stateRef.current.user?.uid;
+        if (!uid) return;
+        const demoProfile = createDefaultProfile({
+          homeCity: "London",
+          budget: 150,
+          diet: "No restrictions",
+          activities: "Foodie, Markets, Live music",
+        });
+        const store = getProfileStore();
+        await store.saveProfile(uid, demoProfile);
+        setProfile(demoProfile);
+        setShowOnboarding(false);
+        setProfileLoading(false);
+      },
+      isAuthReady: () => Boolean(stateRef.current.user),
+      isProfileReady: () =>
+        Boolean(
+          stateRef.current.user &&
+            !stateRef.current.profileLoading &&
+            stateRef.current.profile?.onboardingComplete &&
+            !stateRef.current.showOnboarding,
+        ),
+      isDiscoverLoading: () => stateRef.current.discoverLoading,
+      isDiscoverReady: () =>
+        !stateRef.current.discoverLoading &&
+        stateRef.current.events.length > 0,
+      isEventDetailOpen: () => Boolean(stateRef.current.selectedId),
+      isPlanPlanning: () => stateRef.current.planStatus === "planning",
+      isPlanDone: () =>
+        stateRef.current.planStatus === "done" &&
+        Boolean(stateRef.current.planResult),
+      isPlanConfirmed: () => stateRef.current.planConfirmed,
+    }),
+    [signInAsDemo],
+  );
 
   const homeCity = profile?.homeCity ?? "London";
 
@@ -118,7 +170,8 @@ export default function SidequestExplorer() {
     const store = getProfileStore();
     const saved = await store.getProfile(uid);
     setProfile(saved);
-    setShowOnboarding(!saved?.onboardingComplete);
+    const forceOnboarding = shouldForceOnboarding();
+    setShowOnboarding(forceOnboarding || !saved?.onboardingComplete);
     setProfileLoading(false);
   }, []);
 
@@ -278,6 +331,7 @@ export default function SidequestExplorer() {
     await store.saveProfile(user.uid, next);
     setProfile(next);
     setShowOnboarding(false);
+    clearForceOnboarding();
   }
 
   async function handlePlanWeekend(event: DiscoverEvent) {
@@ -405,6 +459,7 @@ export default function SidequestExplorer() {
         </div>
 
         <div className="flex shrink-0 items-center gap-3">
+          <RunDemoButton />
           <UserMenu
             user={user}
             homeCity={profile?.homeCity}
@@ -516,6 +571,7 @@ export default function SidequestExplorer() {
                         selected={selectedId === event.id}
                         onClick={() => setSelectedId(event.id)}
                         index={index}
+                        demoTarget={index === 0 ? "event-0" : undefined}
                       />
                     ))}
                 </div>
@@ -547,7 +603,7 @@ export default function SidequestExplorer() {
     );
   }
 
-  return content;
+  return <DemoRunner actions={demoActions}>{content}</DemoRunner>;
 }
 
 function QuickSearchChips({
@@ -570,6 +626,9 @@ function QuickSearchChips({
           key={chip.label}
           type="button"
           disabled={disabled}
+          data-demo-target={
+            chip.label === "Food markets" ? "chip-food" : undefined
+          }
           onClick={() => onSelect(chip.activities)}
           className={`chip shrink-0 disabled:cursor-not-allowed disabled:opacity-50 ${
             activeQuery === chip.activities ? "chip--active" : ""
@@ -594,6 +653,9 @@ function SignInScreen({
   return (
     <div className="bg-quest-gradient relative flex min-h-screen flex-col items-center justify-center px-6">
       <div className="absolute right-5 top-5 md:right-8 md:top-6">
+        <RunDemoButton />
+      </div>
+      <div className="animate-slide-up w-full max-w-md rounded-2xl border border-border bg-surface p-8 sm:p-10">
         <BrandLogo size={80} className="mx-auto" />
         <h1 className="mt-6 text-center text-2xl font-semibold tracking-tight text-foreground">
           Welcome to Sidequest
@@ -606,6 +668,7 @@ function SignInScreen({
         <button
           type="button"
           disabled={loading}
+          data-demo-target="sign-in"
           onClick={onSignIn}
           className="btn-press mt-8 flex w-full items-center justify-center gap-3 rounded-full border border-border bg-foreground py-3.5 text-sm font-medium text-background transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
         >

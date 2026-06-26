@@ -112,6 +112,7 @@ export default function EventDetail({
             type="button"
             onClick={onPlan}
             disabled={isPlanning}
+            data-demo-target="plan-button"
             className="btn-press inline-flex w-full items-center justify-center gap-2 rounded-full bg-purple px-6 py-3.5 text-sm font-semibold text-background shadow-md transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isPlanning ? (

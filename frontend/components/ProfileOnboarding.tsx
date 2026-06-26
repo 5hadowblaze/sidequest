@@ -10,6 +10,7 @@ import AccessibilityStep from "./Onboarding/steps/AccessibilityStep";
 import ActivitiesStep from "./Onboarding/steps/ActivitiesStep";
 import BudgetStep from "./Onboarding/steps/BudgetStep";
 import CelebrationStep from "./Onboarding/steps/CelebrationStep";
+import ConnectionsStep from "./Onboarding/steps/ConnectionsStep";
 import DietStep from "./Onboarding/steps/DietStep";
 import WelcomeCityStep from "./Onboarding/steps/WelcomeCityStep";
 import { joinList, parseList, toggleListItem } from "./Onboarding/utils";
@@ -25,7 +26,8 @@ const STEP_IDS = [
   "diet",
   "activities",
   "accessibility",
-    "celebration",
+  "connections",
+  "celebration",
 ] as const;
 
 type StepId = (typeof STEP_IDS)[number];
@@ -193,6 +195,15 @@ export default function ProfileOnboarding({
                       toggleListItem(current, label),
                     )
                   }
+                  direction={direction}
+                />
+              )}
+              {step === "connections" && (
+                <ConnectionsStep
+                  calendarConnected={calendarConnected}
+                  connectedSources={connectedSources}
+                  onCalendarConnect={() => setCalendarConnected(true)}
+                  onToggleSource={handleToggleSource}
                   direction={direction}
                 />
               )}

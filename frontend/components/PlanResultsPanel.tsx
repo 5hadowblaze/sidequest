@@ -57,6 +57,7 @@ export default function PlanResultsPanel({
   return (
     <div
       className="animate-celebrate fixed inset-x-0 bottom-0 z-40 flex max-h-[62vh] flex-col overflow-hidden rounded-t-3xl border border-border bg-surface shadow-2xl md:inset-x-auto md:right-6 md:bottom-6 md:max-h-[78vh] md:w-[420px] md:rounded-3xl"
+      data-demo-target="plan-results"
     >
       {showCelebration && (
         <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-24 overflow-hidden" aria-hidden>
@@ -93,6 +94,7 @@ export default function PlanResultsPanel({
               {confirmed && (
                 <span
                   className="rounded-full bg-teal px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white"
+                  data-demo-target="plan-confirmed-badge"
                 >
                   Confirmed ✓
                 </span>
@@ -148,6 +150,7 @@ export default function PlanResultsPanel({
 
       <div
         className="shrink-0 border-t border-border bg-surface px-5 py-4"
+        data-demo-target="plan-actions"
       >
         <div className="flex flex-col gap-2.5">
           {!confirmed ? (
@@ -155,6 +158,7 @@ export default function PlanResultsPanel({
               <button
                 type="button"
                 onClick={onConfirm}
+                data-demo-target="plan-confirm"
                 className="btn-press inline-flex w-full items-center justify-center gap-2 rounded-full bg-purple px-5 py-3 text-sm font-semibold text-background shadow-md transition hover:brightness-110"
               >
                 Confirm plan ✓
@@ -162,6 +166,7 @@ export default function PlanResultsPanel({
               <button
                 type="button"
                 onClick={onEdit}
+                data-demo-target="plan-edit"
                 className="btn-press inline-flex w-full items-center justify-center rounded-full border border-border bg-surface px-5 py-3 text-sm font-semibold text-foreground transition hover:bg-surface-muted"
               >
                 Edit plan
@@ -171,6 +176,7 @@ export default function PlanResultsPanel({
             <button
               type="button"
               onClick={onEdit}
+              data-demo-target="plan-edit"
               className="btn-press inline-flex w-full items-center justify-center rounded-full border border-border bg-surface px-5 py-3 text-sm font-semibold text-foreground transition hover:bg-surface-muted"
             >
               Start over

@@ -14,8 +14,16 @@ import { useCallback, useEffect, useState } from "react";
 
 import { getFirebaseAuth, isFirebaseConfigured } from "./firebase";
 import { getGoogleAccessToken, storeGoogleAccessToken } from "./calendar";
+import {
+  activateDemoSession,
+  deactivateDemoSession,
+  DEMO_USER,
+  isDemoSessionActive,
+} from "./demo-session";
+import { markForceOnboarding } from "./onboarding-session";
 import type { AuthUser } from "./types";
 
+export { DEMO_USER, activateDemoSession, deactivateDemoSession, isDemoSessionActive };
 
 /**
  * Sensitive scope — requires Google OAuth app verification.
@@ -236,8 +244,15 @@ export async function signInWithGoogle(): Promise<GoogleSignInResult | AuthUser>
   }
 }
 
+/** Instant demo sign-in — no OAuth popup. Works during presenter autoplay. */
+export function signInAsDemoUser(): AuthUser {
+  activateDemoSession();
+  writeMockUser(DEMO_USER);
+  return DEMO_USER;
+}
 
 export async function signOutUser(): Promise<void> {
+  deactivateDemoSession();
   if (isFirebaseConfigured()) {
     await signOut(getFirebaseAuth());
   }
@@ -302,8 +317,9 @@ export function useAuth() {
       if (active) {
         if (firebaseUser) {
           setUser(mapFirebaseUser(firebaseUser));
+        } else if (isDemoSessionActive()) {
+          setUser(readMockUser() ?? DEMO_USER);
         } else {
-          setUser(null);
           setUser(null);
         }
       }
@@ -331,6 +347,7 @@ export function useAuth() {
             const mapped = applyGoogleSignInResult(redirectResult);
             setUser(mapped);
             setSignInError(null);
+            markForceOnboarding();
           }
         } catch (err) {
           if (active) {
@@ -359,6 +376,7 @@ export function useAuth() {
         setUser(result);
       } else {
         setUser(applyGoogleSignInResult(result));
+        markForceOnboarding();
       }
       setSignInError(null);
     } catch (err) {
@@ -377,6 +395,12 @@ export function useAuth() {
     setUser(null);
   }, []);
 
+  const handleSignInAsDemo = useCallback(() => {
+    setSignInError(null);
+    const demo = signInAsDemoUser();
+    setUser(demo);
+    setLoading(false);
+  }, []);
 
   return {
     user,
@@ -384,6 +408,7 @@ export function useAuth() {
     signInError,
     signInLoading,
     signInWithGoogle: handleSignIn,
+    signInAsDemo: handleSignInAsDemo,
     signOut: handleSignOut,
     isMockAuth: !firebaseReady,
   };

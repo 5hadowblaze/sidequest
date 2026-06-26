@@ -236,6 +236,7 @@ export default function PipelineFlowPopover({
         aria-label={
           open ? "Close architecture pipeline" : "Open architecture pipeline"
         }
+        data-demo-target="pipeline-flow"
         onClick={toggle}
       >
         <FlowIcon active={isRunning} />
@@ -254,7 +255,9 @@ export default function PipelineFlowPopover({
             <p className="pipeline-flow-eyebrow">Architecture</p>
             <h2 className="pipeline-flow-title">How Sidequest works</h2>
             <p className="pipeline-flow-lede">
-              Live search, logic filtering, AI formatting, and traced agent calls from discover through your weekend plan.
+              Luma and Eventbrite feed the index; Tavily searches Instagram, social
+              posts, Google, and event listings — then logic filtering, AI formatting,
+              and full agent tracing.
             </p>
           </header>
 
@@ -265,6 +268,7 @@ export default function PipelineFlowPopover({
                 <div
                   key={source.id}
                   className={`pipeline-flow-source pipeline-flow-source--${source.accent}`}
+                  data-demo-target={`source-${source.id}`}
                 >
                   <EventSourceIcon id={source.id} />
                   <span className="pipeline-flow-source-name">{source.name}</span>
@@ -279,6 +283,34 @@ export default function PipelineFlowPopover({
             </div>
           </section>
 
+          <section className="pipeline-flow-partners" aria-label="Hackathon partners">
+            <p className="pipeline-flow-partners-label">Hackathon partners</p>
+            <div className="pipeline-flow-partner-heroes">
+              {HACKATHON_PARTNERS.map((partner) => (
+                <button
+                  key={partner.id}
+                  type="button"
+                  className={[
+                    "partner-hero",
+                    `partner-hero--${partner.accent}`,
+                    focusedPartner === partner.id ? "partner-hero--focused" : "",
+                    partner.trackFocus ? "partner-hero--track" : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
+                  data-demo-target={`partner-${partner.id}`}
+                  aria-pressed={focusedPartner === partner.id}
+                  onClick={() => handlePartnerFocus(partner.id)}
+                >
+                  <span className="partner-hero-ring" aria-hidden="true" />
+                  <PartnerHeroIcon id={partner.id} />
+                  <span className="partner-hero-powered">{partner.poweredLabel}</span>
+                  <span className="partner-hero-name">{partner.name}</span>
+                  <span className="partner-hero-tagline">{partner.tagline}</span>
+                </button>
+              ))}
+            </div>
+          </section>
 
           <div className="pipeline-flow-main">
             <ol className="pipeline-flow-steps">
@@ -354,7 +386,7 @@ export default function PipelineFlowPopover({
                 <div>
                   <p className="pipeline-flow-note-title">MPP micropayments</p>
                   <p className="pipeline-flow-note-body">
-                    Optional per-query billing for premium discover queries.
+                    Optional per-query billing — skipped by default in this demo.
                   </p>
                 </div>
               </div>

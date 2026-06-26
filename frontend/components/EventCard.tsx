@@ -8,6 +8,7 @@ interface EventCardProps {
   selected: boolean;
   onClick: () => void;
   index?: number;
+  demoTarget?: string;
 }
 
 const STAGGER_CLASSES = [
@@ -24,6 +25,7 @@ export default function EventCard({
   selected,
   onClick,
   index = 0,
+  demoTarget,
 }: EventCardProps) {
   const rules = event.passed_rules ?? [];
   const showBadges = rules.length > 0;
@@ -36,6 +38,7 @@ export default function EventCard({
     <button
       type="button"
       onClick={onClick}
+      data-demo-target={demoTarget}
       className={`card-lift animate-slide-up group w-full overflow-hidden rounded-xl border bg-surface text-left ${staggerClass} ${
         selected
           ? "event-card--map-selected border-purple/60 ring-2 ring-purple/25"

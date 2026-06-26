@@ -9,6 +9,7 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
 from agent import run_weekend_planner
+from demo_data import is_demo_mode_forced
 from discover import discover_local_events, parse_calendar_slots
 from models import CalendarSlot, DiscoverResponse, PlanRequest, PlanResult, UserConstraintContext
 from prometheux_filter import PrometheuxConfigError, PrometheuxEngineBusyError, PrometheuxSDKError
@@ -60,7 +61,7 @@ def discover(
 
     context: UserConstraintContext | None = None
     if budget is not None:
-        if not os.environ.get("PMTX_TOKEN"):
+        if not os.environ.get("PMTX_TOKEN") and not is_demo_mode_forced():
             raise HTTPException(
                 status_code=503,
                 detail="PMTX_TOKEN is required for Prometheux discover filtering",
@@ -101,16 +102,17 @@ def discover(
 
 @app.post("/plan", response_model=PlanResult)
 def plan(request: PlanRequest) -> PlanResult:
-    missing = [
-        key
-        for key in ("GEMINI_API_KEY", "TAVILY_API_KEY", "PMTX_TOKEN")
-        if not os.environ.get(key)
-    ]
-    if missing:
-        raise HTTPException(
-            status_code=503,
-            detail=f"Missing required environment variables: {', '.join(missing)}",
-        )
+    if not is_demo_mode_forced():
+        missing = [
+            key
+            for key in ("GEMINI_API_KEY", "TAVILY_API_KEY", "PMTX_TOKEN")
+            if not os.environ.get(key)
+        ]
+        if missing:
+            raise HTTPException(
+                status_code=503,
+                detail=f"Missing required environment variables: {', '.join(missing)}",
+            )
 
     try:
         return run_weekend_planner(request)
