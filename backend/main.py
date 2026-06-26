@@ -18,7 +18,7 @@ load_dotenv(ROOT_DIR / ".env.local")
 load_dotenv(ROOT_DIR / ".env")
 load_dotenv(Path(__file__).resolve().parent / ".env")
 
-app = FastAPI(title="Perfect Weekend Planner", version="0.1.0")
+app = FastAPI(title="Sidequest", version="0.1.0")
 
 app.add_middleware(
     CORSMiddleware,

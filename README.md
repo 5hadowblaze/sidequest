@@ -1,6 +1,6 @@
-# Perfect Weekend Planner Agent
+# Sidequest
 
-**Multiagents Hackathon (June 2026)** — deterministic autonomous agent for verified weekend itineraries.
+**Multiagents Hackathon (June 2026)** — deterministic autonomous agent for verified weekend itineraries. **Sidequest — your weekend, verified.**
 
 ## Core differentiator: Prometheux / Vadalog
 
@@ -50,26 +50,26 @@ Filter method is always `sdk` via `prometheux_chain` — no REST or Python fallb
 | Agentic payments | MPP — **scaffolded only, optional** (`SKIP_MPP=true` default) |
 | Backend | Python FastAPI |
 
-## Weekend Explorer UI
+## Sidequest UI
 
-The app opens to **Weekend Explorer** — a map-first experience for discovering local events and planning verified itineraries.
+The app opens to **Sidequest** — a map-first experience for discovering local events and planning verified itineraries.
 
 | Flow | What happens |
 |------|----------------|
 | **Sign in** | Google via Firebase (`frontend/lib/auth.ts`). Requests `calendar.readonly` scope; access token stored in session for free-slot lookup. Falls back to mock auth + localStorage when Firebase env vars are unset. |
 | **Onboarding** | One-time profile modal (`ProfileOnboarding`) — home city, budget, diet, activities, accessibility. Saved to Firestore `users/{uid}` (or localStorage in mock mode). |
 | **Calendar** | `frontend/lib/calendar.ts` calls Google Calendar `freeBusy` for upcoming Sat/Sun, derives morning / afternoon / evening free slots. Mock slots when calendar token unavailable. |
-| **Discover** | `WeekendExplorer` → `GET /api/discover` → FastAPI `/discover` with profile constraints + `calendar_slots` JSON. Tavily search + Prometheux Vadalog filter; cards show `passed_rules` badges (Budget, Location, Diet, Free saturday afternoon, …). |
+| **Discover** | `SidequestExplorer` → `GET /api/discover` → FastAPI `/discover` with profile constraints + `calendar_slots` JSON. Tavily search + Prometheux Vadalog filter; cards show `passed_rules` badges (Budget, Location, Diet, Free saturday afternoon, …). |
 | **Plan** | Select an event → **Plan weekend** → `POST /api/plan` (MPP skipped when `SKIP_MPP=true`) with profile + `calendar_slots`. Returns itinerary + `filter_stats`. |
 
-Key files: `frontend/components/WeekendExplorer.tsx`, `EventCard.tsx`, `ExplorerMap.tsx`, `frontend/lib/discover-client.ts`, `frontend/lib/calendar.ts`, `backend/discover.py`.
+Key files: `frontend/components/SidequestExplorer.tsx`, `EventCard.tsx`, `ExplorerMap.tsx`, `frontend/lib/discover-client.ts`, `frontend/lib/calendar.ts`, `backend/discover.py`.
 
 Type-check: `cd frontend && npx tsc --noEmit`
 
 ## Project structure
 
 ```
-frontend/     # Weekend Explorer UI + /api/discover + /api/plan proxy (MPP optional)
+frontend/     # Sidequest UI + /api/discover + /api/plan proxy (MPP optional)
 backend/      # discover.py + agent.py: Tavily → Prometheux → Gemini → cited.md
 cited.md      # Generated output at repo root
 Design.md     # Full PDD + architecture
@@ -136,7 +136,7 @@ The **Next.js frontend** deploys to [Firebase App Hosting](https://firebase.goog
 
 1. **Blaze plan** — App Hosting requires billing: [upgrade project](https://console.firebase.google.com/project/perfect-weekend-planner/overview?purchaseBillingPlan=metered).
 2. **Enable App Hosting** — Firebase console → **Build** → **App Hosting** → create backend `weekend-explorer` (or let the first CLI deploy create it).
-3. **Authorized domains** — Firebase console → **Authentication** → **Settings** → add your App Hosting URL (e.g. `weekend-explorer--perfect-weekend-planner.us-central1.hosted.app`) under **Authorized domains**.
+3. **Authorized domains** — `localhost`, `perfect-weekend-planner.firebaseapp.com`, and `perfect-weekend-planner.web.app` are already set for local + default hosting. After App Hosting deploy, add your backend URL (e.g. `weekend-explorer--perfect-weekend-planner.us-central1.hosted.app`) in [Authentication → Settings](https://console.firebase.google.com/project/perfect-weekend-planner/authentication/settings). See `Design.md` for API verify/update one-liners.
 4. **Firestore** — rules/indexes deploy with `firebase deploy --only firestore` if not already applied.
 
 ### Configure environment

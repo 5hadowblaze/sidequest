@@ -21,9 +21,16 @@ import type {
   UserProfile,
 } from "@/lib/types";
 
-export default function WeekendExplorer() {
-  const { user, loading: authLoading, signInWithGoogle, signOut, isMockAuth } =
-    useAuth();
+export default function SidequestExplorer() {
+  const {
+    user,
+    loading: authLoading,
+    signInWithGoogle,
+    signOut,
+    isMockAuth,
+    signInError,
+    signInLoading,
+  } = useAuth();
 
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [profileLoading, setProfileLoading] = useState(true);
@@ -170,7 +177,14 @@ export default function WeekendExplorer() {
   }
 
   if (!user) {
-    return <SignInScreen onSignIn={() => void signInWithGoogle()} isMockAuth={isMockAuth} />;
+    return (
+      <SignInScreen
+        onSignIn={() => void signInWithGoogle()}
+        isMockAuth={isMockAuth}
+        error={signInError}
+        loading={signInLoading}
+      />
+    );
   }
 
   if (profileLoading) {
@@ -182,14 +196,14 @@ export default function WeekendExplorer() {
       <header className="z-30 flex shrink-0 items-center justify-between border-b border-[#e8eaed] bg-white px-4 py-3 md:px-6">
         <div className="flex items-center gap-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-[#4285f4] via-[#34a853] to-[#fbbc04] text-sm font-bold text-white shadow-sm">
-            W
+            S
           </div>
           <div>
             <h1 className="text-base font-medium text-[#202124] md:text-lg">
-              Weekend Explorer
+              Sidequest
             </h1>
             <p className="hidden text-xs text-[#80868b] sm:block">
-              Local events · Plan with Prometheux
+              your weekend, verified
             </p>
           </div>
         </div>
@@ -302,32 +316,52 @@ export default function WeekendExplorer() {
 function SignInScreen({
   onSignIn,
   isMockAuth,
+  error,
+  loading,
 }: {
   onSignIn: () => void;
   isMockAuth: boolean;
+  error?: string | null;
+  loading?: boolean;
 }) {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-b from-[#e8f0fe] to-white px-6">
       <div className="w-full max-w-md rounded-3xl border border-[#e8eaed] bg-white p-10 shadow-xl">
         <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-[#4285f4] via-[#34a853] to-[#fbbc04] text-xl font-bold text-white">
-          W
+          S
         </div>
         <h1 className="mt-6 text-center text-2xl font-medium text-[#202124]">
-          Explore your weekends
+          Sidequest
         </h1>
         <p className="mt-3 text-center text-sm leading-relaxed text-[#5f6368]">
-          Discover local events on the map, then plan a verified itinerary with
-          Prometheux and Tavily.
+          Your weekend, verified. Discover local events on the map, then plan
+          with Prometheux and Tavily.
         </p>
 
         <button
           type="button"
+          disabled={loading}
           onClick={onSignIn}
-          className="mt-8 flex w-full items-center justify-center gap-3 rounded-full border border-[#dadce0] bg-white py-3.5 text-sm font-medium text-[#3c4043] shadow-sm transition hover:bg-[#f8f9fa] hover:shadow-md"
+          className="mt-8 flex w-full items-center justify-center gap-3 rounded-full border border-[#dadce0] bg-white py-3.5 text-sm font-medium text-[#3c4043] shadow-sm transition hover:bg-[#f8f9fa] hover:shadow-md disabled:cursor-not-allowed disabled:opacity-60"
         >
-          <GoogleIcon />
-          Continue with Google
+          {loading ? (
+            <>
+              <span className="h-4 w-4 animate-spin rounded-full border-2 border-[#4285f4] border-t-transparent" />
+              Signing in…
+            </>
+          ) : (
+            <>
+              <GoogleIcon />
+              Continue with Google
+            </>
+          )}
         </button>
+
+        {error && (
+          <p className="mt-4 rounded-xl bg-[#fce8e6] px-4 py-3 text-sm text-[#c5221f]">
+            {error}
+          </p>
+        )}
 
         {isMockAuth && (
           <p className="mt-4 text-center text-xs text-[#80868b]">

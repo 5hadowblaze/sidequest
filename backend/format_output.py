@@ -30,7 +30,7 @@ def write_cited_md(
     filter_stats: FilterStats,
 ) -> Path:
     lines: list[str] = [
-        "# Perfect Weekend Planner — Cited Itinerary",
+        "# Sidequest — Cited Itinerary",
         "",
         "## Prometheux filter (Vadalog)",
         "",

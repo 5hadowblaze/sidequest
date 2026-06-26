@@ -15,7 +15,44 @@ from prometheux_filter import (
     compute_passed_rules,
     context_from_plan,
     filter_candidates,
+    sanitize_vadalog_string,
 )
+
+
+def test_sanitize_vadalog_string_strips_quotes_and_backslashes() -> None:
+    assert sanitize_vadalog_string('Dancing with the "Stars"') == (
+        "Dancing with the 'Stars'"
+    )
+    assert sanitize_vadalog_string("path\\to\\show") == "path to show"
+
+
+def test_sanitize_vadalog_string_normalizes_whitespace_and_truncates() -> None:
+    assert sanitize_vadalog_string("line1\nline2\r\nline3") == "line1 line2 line3"
+    long_text = "a" * 500
+    assert len(sanitize_vadalog_string(long_text, max_len=100)) == 100
+
+
+def test_build_vadalog_program_sanitizes_problematic_candidate_text() -> None:
+    ctx = UserConstraintContext(budget=150, home_location="Austin", diet="vegan", activities="music")
+    candidates = [
+        CandidateItem(
+            id="evt_quote",
+            type="event",
+            title='Watch "Dancing with the Stars" Live',
+            url="https://example.com/event?id=1&name=foo",
+            snippet='Austin show\nwith "quotes" and\\backslashes',
+            price_estimate=25,
+            location="Austin, TX",
+            tags="music, live",
+            date_hint="Saturday evening",
+        )
+    ]
+    program = build_vadalog_program(candidates, ctx)
+    assert 'candidate("evt_quote"' in program
+    assert "'Dancing with the Stars'" in program
+    assert "\n" not in program.split("candidate(")[1].split(").")[0]
+    assert "backslashes" in program
+    assert "\\" not in program.split("candidate(")[1].split(").")[0]
 
 
 def test_context_from_plan(sample_plan_request) -> None:

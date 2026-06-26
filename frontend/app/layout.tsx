@@ -13,9 +13,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Weekend Explorer",
+  title: "Sidequest",
   description:
-    "Google Explore-style weekend planner — discover local events, plan with Prometheux/Vadalog.",
+    "Sidequest — your weekend, verified. Discover local events and plan with Prometheux/Vadalog and Tavily.",
 };
 
 export default function RootLayout({

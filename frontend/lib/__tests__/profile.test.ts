@@ -68,11 +68,11 @@ describe("getProfileStore (localStorage)", () => {
 
     const loaded = await store.getProfile("user-1");
     expect(loaded).toEqual(sampleProfile);
-    expect(localStorage.getItem("weekend-explorer-profile:user-1")).toBeTruthy();
+    expect(localStorage.getItem("sidequest-profile:user-1")).toBeTruthy();
   });
 
   it("returns null for corrupted localStorage JSON", async () => {
-    localStorage.setItem("weekend-explorer-profile:user-1", "{not-json");
+    localStorage.setItem("sidequest-profile:user-1", "{not-json");
     const store = getProfileStore();
     await expect(store.getProfile("user-1")).resolves.toBeNull();
   });

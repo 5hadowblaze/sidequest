@@ -1,6 +1,7 @@
 import type { CalendarPeriod, CalendarSlot } from "./types";
 
-const ACCESS_TOKEN_KEY = "weekend-explorer-google-access-token";
+const ACCESS_TOKEN_KEY = "sidequest-google-access-token";
+const LEGACY_ACCESS_TOKEN_KEY = "weekend-explorer-google-access-token";
 
 const PERIOD_WINDOWS: Record<
   CalendarPeriod,
@@ -24,14 +25,25 @@ export function storeGoogleAccessToken(token: string | null): void {
   if (typeof window === "undefined") return;
   if (token) {
     sessionStorage.setItem(ACCESS_TOKEN_KEY, token);
+    sessionStorage.removeItem(LEGACY_ACCESS_TOKEN_KEY);
   } else {
     sessionStorage.removeItem(ACCESS_TOKEN_KEY);
+    sessionStorage.removeItem(LEGACY_ACCESS_TOKEN_KEY);
   }
 }
 
 export function getGoogleAccessToken(): string | null {
   if (typeof window === "undefined") return null;
-  return sessionStorage.getItem(ACCESS_TOKEN_KEY);
+  const token = sessionStorage.getItem(ACCESS_TOKEN_KEY);
+  if (token) return token;
+
+  const legacy = sessionStorage.getItem(LEGACY_ACCESS_TOKEN_KEY);
+  if (legacy) {
+    sessionStorage.setItem(ACCESS_TOKEN_KEY, legacy);
+    sessionStorage.removeItem(LEGACY_ACCESS_TOKEN_KEY);
+    return legacy;
+  }
+  return null;
 }
 
 function startOfDay(date: Date): Date {

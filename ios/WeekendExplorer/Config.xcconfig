@@ -1,0 +1,5 @@
+// Sidequest build configuration
+// Override BACKEND_URL with your Mac's LAN IP when testing on a physical device.
+
+BACKEND_URL = http://127.0.0.1:8000
+DEVELOPMENT_TEAM =

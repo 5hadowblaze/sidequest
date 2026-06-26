@@ -17,9 +17,9 @@
   "auth": {
     "providers": {
       "googleSignIn": {
-        "oAuthBrandDisplayName": "Perfect Weekend Planner",
+        "oAuthBrandDisplayName": "Sidequest",
         "supportEmail": "dzakwan1844@gmail.com",
-        "authorizedDomains": ["localhost"]
+        "authorizedDomains": ["localhost", "127.0.0.1"]
       }
     }
   }

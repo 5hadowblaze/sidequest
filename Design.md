@@ -1,6 +1,6 @@
-# Perfect Weekend Planner — Product Design Document
+# Sidequest — Product Design Document
 
-Hackathon submission for **Multiagents Hackathon (June 2026)**. Built for the **Prometheux track**: deterministic constraint filtering with Vadalog before any LLM formatting.
+Hackathon submission for **Multiagents Hackathon (June 2026)**. **Sidequest — your weekend, verified.** Built for the **Prometheux track**: deterministic constraint filtering with Vadalog before any LLM formatting.
 
 > **Cursor instruction:** Keep this file updated as features land. When adding endpoints, env vars, or pipeline steps, update the relevant sections here.
 
@@ -142,7 +142,7 @@ Request body for `POST /plan` (and frontend form):
 ```mermaid
 sequenceDiagram
     participant User
-    participant Explorer as WeekendExplorer
+    participant Explorer as SidequestExplorer
     participant API as api_discover_route
     participant FastAPI as backend_main
     participant Tavily
@@ -250,6 +250,38 @@ Firebase backs **Google Sign-In**, **Google Calendar read access** (free weekend
 | `frontend/lib/firestore.ts` | `UserProfile` save/load (`homeCity`, `budget`, `diet`, `activities`, `accessibility`) |
 | `frontend/lib/profile.ts` | Profile store abstraction (Firestore or localStorage) |
 
+### Authorized domains (Google Sign-In)
+
+Local dev and hosting URLs must appear under **Authentication → Settings → Authorized domains**. As of 2026-06-26 the project lists:
+
+- `localhost`
+- `perfect-weekend-planner.firebaseapp.com`
+- `perfect-weekend-planner.web.app`
+
+Add App Hosting hostnames here after deploy (e.g. `weekend-explorer--perfect-weekend-planner.us-central1.hosted.app`).
+
+**Verify** (requires `gcloud auth login` with access to the project):
+
+```bash
+curl -sS -H "Authorization: Bearer $(gcloud auth print-access-token)" \
+  -H "X-Goog-User-Project: perfect-weekend-planner" \
+  "https://identitytoolkit.googleapis.com/admin/v2/projects/perfect-weekend-planner/config" \
+  | python3 -c "import sys,json; print(json.load(sys.stdin).get('authorizedDomains'))"
+```
+
+**Add a domain** (Firebase CLI has no `auth:settings` command; use Identity Toolkit Admin API):
+
+```bash
+curl -sS -X PATCH \
+  -H "Authorization: Bearer $(gcloud auth print-access-token)" \
+  -H "X-Goog-User-Project: perfect-weekend-planner" \
+  -H "Content-Type: application/json" \
+  "https://identitytoolkit.googleapis.com/admin/v2/projects/perfect-weekend-planner/config?updateMask=authorizedDomains" \
+  -d '{"authorizedDomains":["localhost","perfect-weekend-planner.firebaseapp.com","perfect-weekend-planner.web.app","YOUR_HOST"]}'
+```
+
+Console: [Authentication → Settings → Authorized domains](https://console.firebase.google.com/project/perfect-weekend-planner/authentication/settings).
+
 ### Deploy / update Firebase backend
 
 ```bash
@@ -287,13 +319,13 @@ Map SDK config keys to env vars: `apiKey` → `NEXT_PUBLIC_FIREBASE_API_KEY`, `a
 
 ---
 
-## Weekend Explorer UI
+## Sidequest UI
 
-Map-first Next.js app at `/` (`WeekendExplorer`). Leaflet + OpenStreetMap for pins; sidebar for event cards and detail.
+Map-first Next.js app at `/` (`SidequestExplorer`). Leaflet + OpenStreetMap for pins; sidebar for event cards and detail.
 
 | Component | Path | Role |
 |-----------|------|------|
-| `WeekendExplorer` | `frontend/components/WeekendExplorer.tsx` | Orchestrates auth, profile, calendar slots, discover, plan |
+| `SidequestExplorer` | `frontend/components/SidequestExplorer.tsx` | Orchestrates auth, profile, calendar slots, discover, plan |
 | `ExplorerMap` | `frontend/components/ExplorerMap.tsx` | Dynamic Leaflet map with event markers |
 | `EventCard` | `frontend/components/EventCard.tsx` | Card with image, category, Prometheux rule badges |
 | `EventDetail` | `frontend/components/EventDetail.tsx` | Selected event + Plan weekend CTA |

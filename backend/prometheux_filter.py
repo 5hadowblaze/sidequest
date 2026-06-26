@@ -156,8 +156,23 @@ def context_from_plan(request: PlanRequest) -> UserConstraintContext:
     )
 
 
-def _escape_vadalog(value: str) -> str:
-    return value.replace("\\", "\\\\").replace('"', '\\"')
+_MAX_VADALOG_FIELD_LEN = 200
+_MAX_VADALOG_SNIPPET_LEN = 400
+
+
+def sanitize_vadalog_string(value: str, *, max_len: int = _MAX_VADALOG_FIELD_LEN) -> str:
+    """Return content safe to embed inside Vadalog double-quoted string literals."""
+    if not value:
+        return ""
+    text = str(value)
+    text = text.replace("\r\n", " ").replace("\r", " ").replace("\n", " ").replace("\t", " ")
+    # Vadalog literals do not support backslash escapes; strip/replace problematic chars.
+    text = text.replace("\\", " ").replace('"', "'")
+    text = "".join(ch if ord(ch) >= 32 else " " for ch in text)
+    text = re.sub(r" +", " ", text).strip()
+    if len(text) > max_len:
+        text = text[:max_len].rstrip()
+    return text
 
 
 def _tokenize_constraints(value: str) -> list[str]:
@@ -183,25 +198,31 @@ def _build_candidate_facts(candidates: list[CandidateItem]) -> str:
     lines: list[str] = []
     for item in candidates:
         lines.append(
-            f'candidate("{_escape_vadalog(item.id)}", "{item.type}", '
-            f'"{_escape_vadalog(item.title)}", "{_escape_vadalog(item.url)}", '
+            f'candidate("{sanitize_vadalog_string(item.id)}", '
+            f'"{sanitize_vadalog_string(item.type)}", '
+            f'"{sanitize_vadalog_string(item.title)}", '
+            f'"{sanitize_vadalog_string(item.url)}", '
             f"{item.price_estimate}, "
-            f'"{_escape_vadalog(item.location)}", "{_escape_vadalog(item.tags)}", '
-            f'"{_escape_vadalog(item.snippet)}", '
-            f'"{_escape_vadalog(item.date_hint)}").'
+            f'"{sanitize_vadalog_string(item.location)}", '
+            f'"{sanitize_vadalog_string(item.tags)}", '
+            f'"{sanitize_vadalog_string(item.snippet, max_len=_MAX_VADALOG_SNIPPET_LEN)}", '
+            f'"{sanitize_vadalog_string(item.date_hint)}").'
         )
     return "\n".join(lines)
 
 
 def _build_token_facts(predicate: str, tokens: list[str]) -> str:
-    return "\n".join(f'{predicate}("{_escape_vadalog(token)}").' for token in tokens)
+    return "\n".join(
+        f'{predicate}("{sanitize_vadalog_string(token)}").' for token in tokens
+    )
 
 
 def _build_calendar_facts(slots: list[CalendarSlot]) -> tuple[str, list[str]]:
     if not slots:
         return "", []
     lines = [
-        f'free_slot("{_escape_vadalog(_normalize_slot_date(slot.date))}", "{slot.period}").'
+        f'free_slot("{sanitize_vadalog_string(_normalize_slot_date(slot.date))}", '
+        f'"{sanitize_vadalog_string(slot.period)}").'
         for slot in slots
     ]
     return "\n".join(lines), ["has_calendar_constraints."]
@@ -230,7 +251,7 @@ def build_vadalog_program(
     return VADALOG_TEMPLATE.format(
         facts=_build_candidate_facts(candidates),
         budget=int(context.budget),
-        location=_escape_vadalog(_location_token(context.home_location)),
+        location=sanitize_vadalog_string(_location_token(context.home_location)),
         constraint_flags="\n".join(constraint_flags),
         diet_facts=_build_token_facts("required_diet_token", diet_tokens),
         activity_facts=_build_token_facts("required_activity_token", activity_tokens),
@@ -455,7 +476,8 @@ def _load_prometheux_sdk() -> Any:
     return px
 
 
-def _save_concept(px: Any, project_id: str, program: str) -> None:
+def _save_concept(px: Any, project_id: str, program: str) -> str:
+    """Save the Vadalog program and return the concept name for run_concept."""
     kwargs = {
         "project_id": project_id,
         "definition": program,
@@ -464,13 +486,17 @@ def _save_concept(px: Any, project_id: str, program: str) -> None:
     }
     try:
         px.save_concept(**kwargs)
+        return CONCEPT_NAME
     except Exception as exc:
         msg = str(exc).lower()
         if "409" not in msg and "already exists" not in msg:
             raise
-        logger.info("Prometheux concept exists; cleaning up %s before re-save", CONCEPT_NAME)
-        px.cleanup_concepts(project_id=project_id, concept_names=[CONCEPT_NAME])
-        px.save_concept(**kwargs)
+        logger.info(
+            "Prometheux concept conflict; overwriting existing_name=%s",
+            OUTPUT_PREDICATE,
+        )
+        px.save_concept(**kwargs, existing_name=OUTPUT_PREDICATE)
+        return OUTPUT_PREDICATE
 
 
 def _filter_with_sdk(program: str) -> list[CandidateItem]:
@@ -486,8 +512,8 @@ def _filter_with_sdk(program: str) -> list[CandidateItem]:
     )
 
     try:
-        _save_concept(px, project_id, program)
-        result = px.run_concept(project_id=project_id, concept_name=CONCEPT_NAME)
+        concept_name = _save_concept(px, project_id, program)
+        result = px.run_concept(project_id=project_id, concept_name=concept_name)
     except Exception as exc:
         raise PrometheuxSDKError(
             "Prometheux SDK failed. Verify PMTX_TOKEN at https://platform.prometheux.ai, "

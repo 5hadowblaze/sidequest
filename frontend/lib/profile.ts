@@ -11,7 +11,8 @@ export interface ProfileStore {
   saveProfile(userId: string, profile: UserProfile): Promise<void>;
 }
 
-const LOCAL_PREFIX = "weekend-explorer-profile:";
+const LOCAL_PREFIX = "sidequest-profile:";
+const LEGACY_LOCAL_PREFIX = "weekend-explorer-profile:";
 
 function fromFirestoreProfile(
   uid: string,
@@ -32,7 +33,16 @@ function fromFirestoreProfile(
 class LocalProfileStore implements ProfileStore {
   async getProfile(userId: string): Promise<UserProfile | null> {
     if (typeof window === "undefined") return null;
-    const raw = localStorage.getItem(`${LOCAL_PREFIX}${userId}`);
+    const key = `${LOCAL_PREFIX}${userId}`;
+    let raw = localStorage.getItem(key);
+    if (!raw) {
+      const legacyKey = `${LEGACY_LOCAL_PREFIX}${userId}`;
+      raw = localStorage.getItem(legacyKey);
+      if (raw) {
+        localStorage.setItem(key, raw);
+        localStorage.removeItem(legacyKey);
+      }
+    }
     if (!raw) return null;
     try {
       return JSON.parse(raw) as UserProfile;
@@ -43,7 +53,9 @@ class LocalProfileStore implements ProfileStore {
 
   async saveProfile(userId: string, profile: UserProfile): Promise<void> {
     if (typeof window === "undefined") return;
-    localStorage.setItem(`${LOCAL_PREFIX}${userId}`, JSON.stringify(profile));
+    const key = `${LOCAL_PREFIX}${userId}`;
+    localStorage.setItem(key, JSON.stringify(profile));
+    localStorage.removeItem(`${LEGACY_LOCAL_PREFIX}${userId}`);
   }
 }
 
