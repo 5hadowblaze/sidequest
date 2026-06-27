@@ -1,26 +1,8 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import EventCard from "../EventCard";
 import type { DiscoverEvent } from "@/lib/types";
-
-vi.mock("next/image", () => ({
-  default: ({
-    src,
-    alt,
-    ...props
-  }: {
-    src: string;
-    alt: string;
-    fill?: boolean;
-    className?: string;
-    sizes?: string;
-    unoptimized?: boolean;
-  }) => (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img src={src} alt={alt} data-testid="event-image" {...props} />
-  ),
-}));
 
 const baseEvent: DiscoverEvent = {
   id: "evt-1",
@@ -68,7 +50,7 @@ describe("EventCard", () => {
     expect(screen.getByText("Activities")).toBeInTheDocument();
   });
 
-  it("shows overflow badge when more than four rules pass", () => {
+  it("shows overflow badge when more than three rules pass", () => {
     render(
       <EventCard
         event={{

@@ -39,7 +39,7 @@ cd frontend && npm install && npm run dev
 
 Open `http://localhost:3000` → sign in → complete onboarding → browse map → **Plan weekend**.
 
-On **`demo`**, set `USE_DEMO_DATA=true` in root `.env.local` for reliable seeded events; use the **Live Demo** button for guided autoplay. Pitch script: [`VIDEO_PITCH.md`](VIDEO_PITCH.md).
+On **`demo`**, set `USE_DEMO_DATA=true` in root `.env.local` for reliable seeded events and use the **Live Demo** button for guided autoplay. Pitch script: [`VIDEO_PITCH.md`](VIDEO_PITCH.md). On **`main`**, calendar free slots use **mock slots** when no Google Calendar token is available.
 
 ## Core differentiator: Prometheux logic filter
 
@@ -108,7 +108,7 @@ The app opens to **Sidequest** — a map-first experience for discovering local 
 
 | Flow | What happens |
 |------|----------------|
-| **Sign in** | Google via Firebase (`frontend/lib/auth.ts`). App name **Sidequest** in the Google account picker. Sign-in uses default Firebase scopes only (no `calendar.readonly`). On **`demo`**, onboarding includes a **pseudo calendar connect** step (UI-only). On **`main`**, calendar free slots fall back to **mock slots** when no token is available. Mock auth + localStorage when Firebase env vars are unset. See `Design.md` → Google Sign-In branding. |
+| **Sign in** | Google via Firebase (`frontend/lib/auth.ts`). App name **Sidequest** in the Google account picker. Sign-in uses default Firebase scopes only (no `calendar.readonly`). On **`demo`**, onboarding includes a **pseudo calendar connect** step (UI-only). On **`main`**, calendar free slots fall back to **mock slots** when no Google Calendar token is available. Mock auth + localStorage when Firebase env vars are unset. See `Design.md` → Google Sign-In branding. |
 | **Onboarding** | One-time profile modal (`ProfileOnboarding`) — home city, budget, diet, activities, accessibility. Saved to Firestore `users/{uid}` (or localStorage in mock mode). |
 | **Calendar** | `frontend/lib/calendar.ts` derives morning / afternoon / evening free slots from Google Calendar when a token exists; otherwise mock slots. |
 | **Discover** | `SidequestExplorer` → `GET /api/discover` → FastAPI `/discover` with profile constraints + `calendar_slots` JSON. Tavily search + Prometheux filter; cards show `passed_rules` badges (Budget, Location, Diet, Free saturday afternoon, …). |

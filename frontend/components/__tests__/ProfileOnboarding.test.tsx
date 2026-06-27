@@ -26,11 +26,6 @@ async function advanceToAccessibility(user: ReturnType<typeof userEvent.setup>) 
   await user.click(screen.getByRole("button", { name: /next/i }));
 }
 
-async function advanceToConnections(user: ReturnType<typeof userEvent.setup>) {
-  await advanceToAccessibility(user);
-  await user.click(screen.getByRole("button", { name: /next/i }));
-}
-
 describe("ProfileOnboarding", () => {
   it("shows validation error when home city is empty", async () => {
     const user = userEvent.setup();
@@ -78,9 +73,8 @@ describe("ProfileOnboarding", () => {
       screen.getByRole("button", { name: "Wheelchair accessible" }),
     );
     await user.click(screen.getByRole("button", { name: /next/i }));
-    await user.click(screen.getByRole("button", { name: /next/i }));
 
-    expect(screen.getByText(/you're in/i)).toBeInTheDocument();
+    expect(screen.getByText(/you're in!/i)).toBeInTheDocument();
 
     await vi.advanceTimersByTimeAsync(2300);
 
@@ -110,7 +104,6 @@ describe("ProfileOnboarding", () => {
 
     await advanceToAccessibility(user);
     await user.click(screen.getByRole("button", { name: "Skip" }));
-    await user.click(screen.getByRole("button", { name: /next/i }));
 
     await vi.advanceTimersByTimeAsync(2300);
 
