@@ -2,6 +2,14 @@
 
 **Multiagents Hackathon (June 2026)** — deterministic autonomous agent for verified weekend itineraries. **Sidequest — your weekend, verified.**
 
+## Branches
+
+| Branch | Purpose |
+| --- | --- |
+| `main` | Product Sidequest — map-first discover/plan, production deploy defaults (`NEXT_PUBLIC_ENABLE_DEMO=false`). |
+| `demo` | Presenter autoplay (DemoRunner), pitch assets, and guided live-demo UI for hackathon recordings. |
+
+
 ## Core differentiator: Prometheux / Vadalog
 
 Most agents let an LLM decide what’s “valid.” This project **separates search from verification**:
