@@ -25,7 +25,7 @@ env:
       - BUILD
       - RUNTIME
   - variable: NEXT_PUBLIC_ENABLE_DEMO
-    value: "true"
+    value: "false"
     availability:
       - BUILD
       - RUNTIME
