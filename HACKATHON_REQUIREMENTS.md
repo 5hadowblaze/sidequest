@@ -2,7 +2,7 @@
 
 Official requirements to qualify for prizes and stay aligned with judging criteria.
 
-**Sidequest** earned **2nd place** at Multiagents Hackathon (June 2026).
+**Sidequest** earned **2nd place — Cursor Track** at Multiagents Hackathon (June 2026).
 
 ## Official Rules
 
