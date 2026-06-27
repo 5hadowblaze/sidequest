@@ -23,9 +23,9 @@ Native SwiftUI app for **Sidequest**. The Xcode target folder is still named **W
 
 2. **Add `GoogleService-Info.plist` from Firebase Console**
 
-   The repo includes `WeekendExplorer/Resources/GoogleService-Info.plist` as a **template** with placeholder values (`CLIENT_ID` = `PLACEHOLDER`, `REVERSED_CLIENT_ID` = `com.googleusercontent.apps.PLACEHOLDER`).
+   `GoogleService-Info.plist` is **gitignored** — each developer downloads their own copy.
 
-   Replace it with the real file from [Firebase Console](https://console.firebase.google.com/) → Project **perfect-weekend-planner** → Project settings → Your apps → **Add app** → iOS → bundle ID `com.perfectweekendplanner.explorer` → download `GoogleService-Info.plist`.
+   From [Firebase Console](https://console.firebase.google.com/) → Project **perfect-weekend-planner** → Project settings → Your apps → **Add app** → iOS → bundle ID `com.perfectweekendplanner.explorer` → download `GoogleService-Info.plist` into `WeekendExplorer/Resources/GoogleService-Info.plist`.
 
    After downloading, also update `Info.plist` `CFBundleURLSchemes` with the `REVERSED_CLIENT_ID` from the downloaded plist (replace `com.googleusercontent.apps.PLACEHOLDER`).
 

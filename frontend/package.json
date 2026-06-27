@@ -13,7 +13,7 @@
   },
   "dependencies": {
     "firebase": "^12.15.0",
-    "firebase-admin": "^13.4.0",
+    "firebase-admin": "^13.10.0",
     "leaflet": "^1.9.4",
     "mppx": "^0.8.1",
     "next": "16.2.9",

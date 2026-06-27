@@ -1,6 +1,7 @@
 "use client";
 
 import { getCategoryColors } from "@/lib/category-colors";
+import { sanitizeExternalUrl, sanitizeImageUrl } from "@/lib/safe-url";
 import type { DiscoverEvent, PlannerStatus } from "@/lib/types";
 
 interface EventDetailProps {
@@ -20,12 +21,14 @@ export default function EventDetail({
 }: EventDetailProps) {
   const isPlanning = planStatus === "planning";
   const categoryColors = getCategoryColors(event.category);
+  const imageUrl = sanitizeImageUrl(event.image_url);
+  const sourceUrl = sanitizeExternalUrl(event.url);
 
   return (
     <div className="animate-slide-up flex h-full flex-col bg-surface">
       <div className="relative aspect-[16/9] shrink-0 overflow-hidden bg-surface-muted">
         <img
-          src={event.image_url}
+          src={imageUrl}
           alt={event.title}
           className="absolute inset-0 h-full w-full object-cover"
         />
@@ -91,14 +94,16 @@ export default function EventDetail({
             <span className="font-semibold text-foreground">Coordinates:</span>{" "}
             {event.lat.toFixed(4)}, {event.lng.toFixed(4)}
           </p>
-          <a
-            href={event.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 font-medium text-purple transition hover:text-purple-deep hover:underline"
-          >
-            View source →
-          </a>
+          {sourceUrl && (
+            <a
+              href={sourceUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 font-medium text-purple transition hover:text-purple-deep hover:underline"
+            >
+              View source →
+            </a>
+          )}
         </div>
 
         <div className="mt-auto space-y-3 pt-6">

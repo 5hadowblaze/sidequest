@@ -3,6 +3,9 @@ import type { CalendarPeriod, CalendarSlot } from "./types";
 const ACCESS_TOKEN_KEY = "sidequest-google-access-token";
 const LEGACY_ACCESS_TOKEN_KEY = "weekend-explorer-google-access-token";
 
+/** Calendar OAuth is disabled until Google verifies the app — do not persist tokens. */
+const CALENDAR_TOKEN_STORAGE_ENABLED = false;
+
 const PERIOD_WINDOWS: Record<
   CalendarPeriod,
   { startHour: number; endHour: number }
@@ -23,6 +26,12 @@ interface FreeBusyResponse {
 
 export function storeGoogleAccessToken(token: string | null): void {
   if (typeof window === "undefined") return;
+  if (!CALENDAR_TOKEN_STORAGE_ENABLED) {
+    // Clear any legacy tokens from before calendar was disabled.
+    sessionStorage.removeItem(ACCESS_TOKEN_KEY);
+    sessionStorage.removeItem(LEGACY_ACCESS_TOKEN_KEY);
+    return;
+  }
   if (token) {
     sessionStorage.setItem(ACCESS_TOKEN_KEY, token);
     sessionStorage.removeItem(LEGACY_ACCESS_TOKEN_KEY);
@@ -33,7 +42,9 @@ export function storeGoogleAccessToken(token: string | null): void {
 }
 
 export function getGoogleAccessToken(): string | null {
-  if (typeof window === "undefined") return null;
+  if (typeof window === "undefined" || !CALENDAR_TOKEN_STORAGE_ENABLED) {
+    return null;
+  }
   const token = sessionStorage.getItem(ACCESS_TOKEN_KEY);
   if (token) return token;
 

@@ -160,6 +160,21 @@ Design.md     # Full PDD + architecture
 | `MPP_*` | optional | Set `SKIP_MPP=false` to enable payment gate. **Wallet keys are server-only** (`MPP_SECRET_KEY` in App Hosting secrets) — never use `NEXT_PUBLIC_*` for private keys. |
 | `NEXT_PUBLIC_RECAPTCHA_ENTERPRISE_SITE_KEY` | optional | Firebase App Check (reCAPTCHA Enterprise). Enforced in production when set; skipped in local dev if unset. |
 
+### Firebase App Check (optional, production)
+
+App Check enforcement is **off until you set** `NEXT_PUBLIC_RECAPTCHA_ENTERPRISE_SITE_KEY`. Client (`frontend/lib/firebase.ts`) and server (`frontend/lib/server/auth.ts`) both skip verification when the key is unset — safe for prod without breaking existing traffic.
+
+**Manual setup (Firebase Console):**
+
+1. [Firebase Console](https://console.firebase.google.com/) → **perfect-weekend-planner** → **App Check** → **Apps** → select the **Web** app.
+2. Register **reCAPTCHA Enterprise** as the provider (creates/links a GCP reCAPTCHA key).
+3. Copy the **site key** (not the secret key).
+4. Set `NEXT_PUBLIC_RECAPTCHA_ENTERPRISE_SITE_KEY` in **Firebase App Hosting → weekend-explorer → Environment** (BUILD + RUNTIME). Do **not** add an empty `value:` in `apphosting.yaml` — App Hosting rejects blank env entries.
+5. (Optional) Add your domain to reCAPTCHA Enterprise allowed domains.
+6. For local dev: register a **debug token** in App Check → Debug tokens, set `NEXT_PUBLIC_FIREBASE_APPCHECK_DEBUG_TOKEN` in `frontend/.env.local`.
+
+There is no Firebase CLI command to register App Check providers; use the console steps above. `gcloud recaptcha keys list --project=perfect-weekend-planner` lists existing keys after registration.
+
 ## Prometheux setup (live path)
 
 When `USE_DEMO_DATA` is unset or `false`, the deterministic filter uses the Prometheux SDK and a valid API token.

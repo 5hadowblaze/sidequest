@@ -6,6 +6,7 @@ import logging
 import os
 import re
 from typing import Any
+from urllib.parse import urlparse
 
 from tavily import TavilyClient
 
@@ -25,6 +26,23 @@ from prometheux_filter import (
 )
 
 logger = logging.getLogger(__name__)
+
+_BLOCKED_URL_SCHEMES = frozenset({"javascript", "data", "vbscript", "file", "blob"})
+
+
+def _safe_https_url(raw: str, fallback: str) -> str:
+    trimmed = (raw or "").strip()
+    if not trimmed or trimmed.startswith("//"):
+        return fallback
+    try:
+        parsed = urlparse(trimmed)
+        if parsed.scheme.lower() in _BLOCKED_URL_SCHEMES:
+            return fallback
+        if parsed.scheme == "https" and parsed.netloc:
+            return trimmed
+    except ValueError:
+        pass
+    return fallback
 
 CITY_COORDS: dict[str, tuple[float, float]] = {
     "austin": (30.2672, -97.7431),
@@ -132,7 +150,10 @@ def _normalize_result(
 ) -> DiscoverEvent:
     title = str(result.get("title") or "Local event")
     snippet = str(result.get("content") or result.get("snippet") or "")
-    url = str(result.get("url") or "")
+    url = _safe_https_url(
+        str(result.get("url") or ""),
+        f"https://www.google.com/search?q={title.replace(' ', '+')}",
+    )
     combined = f"{title} {snippet}"
     category = _infer_category(combined)
     event_id = f"disc_{idx}"
@@ -149,7 +170,7 @@ def _normalize_result(
         location=location,
         lat=lat,
         lng=lng,
-        url=url or f"https://www.google.com/search?q={title.replace(' ', '+')}",
+        url=url,
         date_hint=_extract_date_hint(combined),
     )
 

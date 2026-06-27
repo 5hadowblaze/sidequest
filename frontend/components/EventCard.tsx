@@ -1,6 +1,7 @@
 "use client";
 
 import { formatRuleBadge } from "@/lib/calendar";
+import { sanitizeImageUrl } from "@/lib/safe-url";
 import type { DiscoverEvent } from "@/lib/types";
 
 interface EventCardProps {
@@ -31,6 +32,7 @@ export default function EventCard({
   const dateLocation = [event.date_hint ?? "This weekend", event.location]
     .filter(Boolean)
     .join(" · ");
+  const imageUrl = sanitizeImageUrl(event.image_url);
 
   return (
     <button
@@ -44,7 +46,7 @@ export default function EventCard({
     >
       <div className="relative aspect-[4/3] w-full overflow-hidden bg-surface-muted">
         <img
-          src={event.image_url}
+          src={imageUrl}
           alt={event.title}
           className="absolute inset-0 h-full w-full object-cover transition duration-700 ease-out group-hover:scale-[1.03]"
           loading="lazy"

@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from discover import discover_local_events, parse_calendar_slots
+from discover import _safe_https_url, discover_local_events, parse_calendar_slots
 from models import CandidateItem, UserConstraintContext
 from prometheux_filter import FilterResult, PrometheuxSDKError
 
@@ -29,6 +29,15 @@ def test_parse_calendar_slots_invalid_json() -> None:
 def test_parse_calendar_slots_not_array() -> None:
     with pytest.raises(ValueError, match="JSON array"):
         parse_calendar_slots('{"date": "saturday"}')
+
+
+def test_safe_https_url_blocks_unsafe_schemes() -> None:
+    fallback = "https://example.com/fallback"
+    assert _safe_https_url("https://event.com/tickets", fallback) == "https://event.com/tickets"
+    assert _safe_https_url("javascript:alert(1)", fallback) == fallback
+    assert _safe_https_url("//evil.com", fallback) == fallback
+    assert _safe_https_url("http://insecure.com", fallback) == fallback
+    assert _safe_https_url("", fallback) == fallback
 
 
 def test_discover_local_events_requires_location() -> None:

@@ -10,6 +10,7 @@ frontend/build
 
 # Python
 backend/.venv/
+backend/.venv-local/
 backend/venv/
 __pycache__/
 *.py[cod]
@@ -54,3 +55,6 @@ next-env.d.ts
 .firebase/
 .venv-pdf/
 .cursor/
+
+# Firebase iOS config (download from Firebase Console per developer)
+ios/**/GoogleService-Info.plist
