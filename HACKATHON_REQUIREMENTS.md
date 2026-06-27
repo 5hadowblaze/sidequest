@@ -2,6 +2,8 @@
 
 Official requirements to qualify for prizes and stay aligned with judging criteria.
 
+**Sidequest** earned **2nd place** at Multiagents Hackathon (June 2026).
+
 ## Official Rules
 
 To qualify and be eligible for prizes, your submission must strictly adhere to the following rules:

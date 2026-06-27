@@ -1,6 +1,7 @@
 # Sidequest
 
 **Multiagents Hackathon (June 2026)** — deterministic autonomous agent for verified weekend itineraries. **Sidequest — your weekend, verified.**
+🏆 **2nd place** — Multiagents Hackathon, June 2026
 
 ## Branches
 
