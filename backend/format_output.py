@@ -32,14 +32,14 @@ def write_cited_md(
     lines: list[str] = [
         "# Sidequest — Cited Itinerary",
         "",
-        "## Prometheux filter (Vadalog)",
+        "## Prometheux filter",
         "",
         f"- **Method:** `{filter_stats.filter_method}` (deterministic — not LLM)",
         f"- **Concept:** `{filter_stats.concept_name}`",
         f"- **Candidates in:** {filter_stats.candidates_in}",
         f"- **Candidates out:** {filter_stats.candidates_out}",
         "",
-        "Only rows below passed Vadalog rules (budget, location, diet, activity, accessibility). "
+        "Only rows below passed Prometheux rules (budget, location, diet, activity, accessibility). "
         "Gemini formatted the itinerary from this verified set only.",
         "",
         "## Verified candidates",

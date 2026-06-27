@@ -30,7 +30,12 @@ export async function GET(request: NextRequest) {
     }));
 
     if (!backendResponse.ok) {
-      return Response.json(data, { status: backendResponse.status });
+      const headers = new Headers();
+      const retryAfter = backendResponse.headers.get("Retry-After");
+      if (retryAfter) {
+        headers.set("Retry-After", retryAfter);
+      }
+      return Response.json(data, { status: backendResponse.status, headers });
     }
 
     return Response.json(data);

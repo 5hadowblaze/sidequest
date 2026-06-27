@@ -167,9 +167,10 @@ def build_itinerary(
         return []
 
     # Gemini is formatting only — Prometheux/Vadalog already verified every row below.
-    client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
-    rows = [item.model_dump() for item in filtered]
-    prompt = f"""You are formatting a verified weekend itinerary.
+    try:
+        client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+        rows = [item.model_dump() for item in filtered]
+        prompt = f"""You are formatting a verified weekend itinerary.
 
 User constraints:
 - Location: {request.location}
@@ -203,21 +204,23 @@ Rules:
 - Include 3-6 items spanning Saturday and Sunday when enough rows exist.
 """
 
-    response = client.models.generate_content(
-        model=GEMINI_MODEL,
-        contents=prompt,
-        config=types.GenerateContentConfig(
-            response_mime_type="application/json",
-            temperature=0.2,
-        ),
-    )
+        response = client.models.generate_content(
+            model=GEMINI_MODEL,
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+                temperature=0.2,
+            ),
+        )
 
-    text = response.text or ""
-    try:
+        text = response.text or ""
         raw_items = _parse_gemini_json(text)
-        itinerary = [ItineraryItem.model_validate(item) for item in raw_items]
-        return itinerary
-    except (json.JSONDecodeError, ValueError):
+        return [ItineraryItem.model_validate(item) for item in raw_items]
+    except (json.JSONDecodeError, ValueError) as exc:
+        logger.warning("Gemini itinerary parse failed (%s) — using fallback slots", exc)
+        return _fallback_itinerary(filtered, request)
+    except Exception as exc:
+        logger.warning("Gemini itinerary build failed (%s) — using fallback slots", exc)
         return _fallback_itinerary(filtered, request)
 
 

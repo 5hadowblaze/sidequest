@@ -7,16 +7,18 @@ final class APIClientTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        client = APIClient(backendURL: backendURL)
+        client = APIClient(baseURL: backendURL)
     }
 
     func testDiscoverURLIncludesLocationOnly() throws {
         let query = DiscoverQuery(location: "Austin, TX")
         let url = try client.discoverURL(for: query)
+        let components = try XCTUnwrap(URLComponents(url: url, resolvingAgainstBaseURL: false))
+        let items = components.queryItems ?? []
 
         XCTAssertEqual(url.path, "/discover")
-        XCTAssertTrue(url.absoluteString.contains("location=Austin%2C%20TX"))
-        XCTAssertNil(url.query?.contains("budget="))
+        XCTAssertEqual(items.first(where: { $0.name == "location" })?.value, "Austin, TX")
+        XCTAssertNil(items.first(where: { $0.name == "budget" }))
     }
 
     func testDiscoverURLIncludesProfileConstraints() throws {

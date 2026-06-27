@@ -174,7 +174,7 @@ export async function loadCalendarSlots(isMockAuth: boolean): Promise<CalendarSl
 
   const token = getGoogleAccessToken();
   if (!token) {
-    return [];
+    return mockWeekendFreeSlots();
   }
 
   try {

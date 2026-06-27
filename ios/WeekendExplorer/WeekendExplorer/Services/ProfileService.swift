@@ -5,7 +5,7 @@ import FirebaseFirestore
 #endif
 
 actor ProfileService {
-  private let localPrefix = "sidequest-profile:"
+  private let localPrefix = "weekend-explorer-profile:"
   private let defaults: UserDefaults
 
   init(defaults: UserDefaults = .standard) {

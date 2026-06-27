@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="80 168 295 260" fill="none">
+  <circle cx="108" cy="340" r="9" fill="#2d2a32" opacity="0.2"/>
+  <circle cx="148" cy="356" r="7" fill="#2d2a32" opacity="0.3"/>
+  <circle cx="186" cy="366" r="5" fill="#2d2a32" opacity="0.4"/>
+  <g stroke="#2d2a32" stroke-width="20" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M248 362 L226 412"/>
+    <path d="M248 362 L276 412"/>
+    <path d="M248 362 L248 288"/>
+    <path d="M248 314 L210 340"/>
+    <path d="M248 302 L296 266"/>
+  </g>
+  <circle cx="248" cy="246" r="36" fill="#2d2a32"/>
+  <circle cx="322" cy="224" r="40" stroke="#2d2a32" stroke-width="16" fill="none"/>
+  <text x="322" y="240" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="44" font-weight="800" fill="#2d2a32">!</text>
+</svg>

@@ -65,7 +65,7 @@ struct ExplorerView: View {
 
     private var header: some View {
         HStack(alignment: .center, spacing: 12) {
-            BrandLogo(size: 36, cornerRadius: 10, fontSize: 16)
+            BrandLogo(size: 36)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text("Sidequest")

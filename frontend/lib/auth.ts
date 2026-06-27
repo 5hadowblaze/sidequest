@@ -4,7 +4,6 @@ import {
   GoogleAuthProvider,
   getRedirectResult,
   onAuthStateChanged,
-  reauthenticateWithPopup,
   signInWithPopup,
   signInWithRedirect,
   signOut,
@@ -14,32 +13,56 @@ import {
 import { useCallback, useEffect, useState } from "react";
 
 import { getFirebaseAuth, isFirebaseConfigured } from "./firebase";
-import { storeGoogleAccessToken } from "./calendar";
+import { getGoogleAccessToken, storeGoogleAccessToken } from "./calendar";
 import type { AuthUser } from "./types";
 
-/** Read-only access to Google Calendar events (weekends / busy times). */
+
+/**
+ * Sensitive scope — requires Google OAuth app verification.
+ * Not requested until the app is verified; onboarding uses UI-only calendar connect.
+ */
 export const GOOGLE_CALENDAR_READONLY_SCOPE =
   "https://www.googleapis.com/auth/calendar.readonly";
 
 const MOCK_USER_KEY = "sidequest-mock-user";
 const LEGACY_MOCK_USER_KEY = "weekend-explorer-mock-user";
-const DEBUG_RUN_ID = "post-fix-2";
 
-/** Basic Google sign-in — no extra OAuth scopes (avoids redirect/consent failures). */
+/** Google sign-in — Firebase default scopes only (email, profile, openid). */
 const googleSignInProvider = new GoogleAuthProvider();
 googleSignInProvider.setCustomParameters({ prompt: "select_account" });
-
-function createGoogleCalendarProvider(): GoogleAuthProvider {
-  const provider = new GoogleAuthProvider();
-  provider.addScope(GOOGLE_CALENDAR_READONLY_SCOPE);
-  provider.setCustomParameters({ prompt: "consent" });
-  return provider;
-}
 
 /** getRedirectResult must run at most once per full page load. */
 let redirectResultHandled = false;
 
-const AUTH_CHECK_TIMEOUT_MS = 3000;
+/** Max wait when completing an OAuth redirect return (URL has auth params). */
+const REDIRECT_RETURN_TIMEOUT_MS = 8000;
+/** Safety net if auth listener never fires during a redirect return. */
+const REDIRECT_SAFETY_TIMEOUT_MS = 10000;
+
+/** True when the current URL looks like a return from signInWithRedirect / OAuth. */
+function isLikelyAuthRedirectReturn(): boolean {
+  if (typeof window === "undefined") return false;
+
+  const { hash, search } = window.location;
+  if (hash.length > 1) {
+    if (
+      hash.includes("__/auth/") ||
+      hash.includes("access_token=") ||
+      hash.includes("id_token=") ||
+      hash.includes("apiKey=")
+    ) {
+      return true;
+    }
+  }
+
+  if (search.length > 1) {
+    const params = new URLSearchParams(search);
+    if (params.has("code") && params.has("state")) return true;
+    if (params.has("apiKey")) return true;
+  }
+
+  return false;
+}
 
 export interface GoogleSignInResult {
   user: User;
@@ -82,32 +105,6 @@ function writeMockUser(user: AuthUser | null) {
     localStorage.removeItem(MOCK_USER_KEY);
     localStorage.removeItem(LEGACY_MOCK_USER_KEY);
   }
-}
-
-function debugLog(
-  location: string,
-  message: string,
-  data: Record<string, unknown> = {},
-  hypothesisId = "H2",
-) {
-  // #region agent log
-  fetch("http://127.0.0.1:7585/ingest/ed038ca3-794c-4179-bd29-41df952cd5c1", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Debug-Session-Id": "b7419b",
-    },
-    body: JSON.stringify({
-      sessionId: "b7419b",
-      runId: DEBUG_RUN_ID,
-      hypothesisId,
-      location,
-      message,
-      data,
-      timestamp: Date.now(),
-    }),
-  }).catch(() => {});
-  // #endregion
 }
 
 export function mapAuthError(err: unknown): string {
@@ -154,98 +151,39 @@ export function mapAuthError(err: unknown): string {
   return code ? `[${code}] ${message}` : message;
 }
 
-function applyGoogleSignInResult(result: {
-  user: User;
-  accessToken: string | null;
-}): AuthUser {
-  storeGoogleAccessToken(result.accessToken);
+function applyGoogleSignInResult(result: { user: User }): AuthUser {
   return mapFirebaseUser(result.user);
 }
 
-/** Request calendar scope after the user is already signed in with Firebase. */
+/**
+ * Calendar OAuth is disabled until Google verifies the app (sensitive scope).
+ * Onboarding "Connect Google Calendar" is UI-only; slots use mock data.
+ */
 export async function requestGoogleCalendarAccess(
-  user: User,
+  _user: User,
 ): Promise<string | null> {
-  if (!isFirebaseConfigured()) return null;
+  return null;
+}
 
-  const auth = getFirebaseAuth();
-  const provider = createGoogleCalendarProvider();
-  debugLog(
-    "auth.ts:requestGoogleCalendarAccess:entry",
-    "requesting calendar scope via reauthenticateWithPopup",
-    { uid: user.uid },
-    "H4",
-  );
-
-  try {
-    const result = await reauthenticateWithPopup(auth.currentUser ?? user, provider);
-    const credential = GoogleAuthProvider.credentialFromResult(result);
-    const token = credential?.accessToken ?? null;
-    debugLog(
-      "auth.ts:requestGoogleCalendarAccess:success",
-      "calendar scope granted",
-      { hasAccessToken: Boolean(token) },
-      "H4",
-    );
-    return token;
-  } catch (err) {
-    const e = err as { code?: string; message?: string };
-    debugLog(
-      "auth.ts:requestGoogleCalendarAccess:error",
-      "calendar scope request failed (sign-in still valid)",
-      { code: e?.code ?? "unknown", errorMessage: e?.message ?? String(err) },
-      "H4",
-    );
-    return null;
-  }
+/** No-op — does not open OAuth; returns any token already in session only. */
+export async function ensureGoogleCalendarAccess(): Promise<string | null> {
+  return getGoogleAccessToken();
 }
 
 async function resolveRedirectResult(
   auth: Auth,
 ): Promise<GoogleSignInResult | null> {
   if (redirectResultHandled) {
-    debugLog(
-      "auth.ts:resolveRedirectResult:skipped",
-      "getRedirectResult already handled this page load",
-      {},
-      "H2",
-    );
     return null;
   }
   redirectResultHandled = true;
 
-  debugLog(
-    "auth.ts:resolveRedirectResult:entry",
-    "calling getRedirectResult",
-    {
-      hostname:
-        typeof window !== "undefined" ? window.location.hostname : "unknown",
-      origin: typeof window !== "undefined" ? window.location.origin : "unknown",
-    },
-    "H2",
-  );
-
   const redirectResult = await getRedirectResult(auth);
   if (!redirectResult) {
-    debugLog(
-      "auth.ts:resolveRedirectResult:empty",
-      "no pending redirect result",
-      {},
-      "H2",
-    );
     return null;
   }
 
   const credential = GoogleAuthProvider.credentialFromResult(redirectResult);
-  debugLog(
-    "auth.ts:resolveRedirectResult:success",
-    "getRedirectResult succeeded",
-    {
-      uid: redirectResult.user.uid,
-      hasAccessToken: Boolean(credential?.accessToken),
-    },
-    "H2",
-  );
 
   return {
     user: redirectResult.user,
@@ -255,57 +193,23 @@ async function resolveRedirectResult(
 
 export async function signInWithGoogle(): Promise<GoogleSignInResult | AuthUser> {
   const firebaseReady = isFirebaseConfigured();
-  debugLog(
-    "auth.ts:signInWithGoogle:entry",
-    "signInWithGoogle called",
-    {
-      firebaseReady,
-      hostname:
-        typeof window !== "undefined" ? window.location.hostname : "unknown",
-      hasApiKey: Boolean(process.env.NEXT_PUBLIC_FIREBASE_API_KEY),
-      hasAuthDomain: Boolean(process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN),
-      hasProjectId: Boolean(process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID),
-    },
-    "H1",
-  );
 
   if (!firebaseReady) {
     const mockUser: AuthUser = {
       uid: `mock-${Date.now()}`,
-      displayName: "Demo Explorer",
-      email: "demo@weekend.local",
+      displayName: "Explorer",
+      email: "explorer@sidequest.app",
       photoURL: null,
     };
     writeMockUser(mockUser);
-    debugLog(
-      "auth.ts:signInWithGoogle:mock",
-      "using mock auth path",
-      { uid: mockUser.uid },
-      "H5",
-    );
     return mockUser;
   }
 
   const auth = getFirebaseAuth();
-  debugLog(
-    "auth.ts:signInWithGoogle:beforePopup",
-    "calling signInWithPopup (basic Google sign-in, no calendar scope)",
-    {},
-    "H2",
-  );
 
   try {
     const result = await signInWithPopup(auth, googleSignInProvider);
     const credential = GoogleAuthProvider.credentialFromResult(result);
-    debugLog(
-      "auth.ts:signInWithGoogle:success",
-      "signInWithPopup succeeded",
-      {
-        uid: result.user.uid,
-        hasAccessToken: Boolean(credential?.accessToken),
-      },
-      "H2",
-    );
 
     return {
       user: result.user,
@@ -313,23 +217,8 @@ export async function signInWithGoogle(): Promise<GoogleSignInResult | AuthUser>
     };
   } catch (err) {
     const e = err as { code?: string; message?: string };
-    debugLog(
-      "auth.ts:signInWithGoogle:error",
-      "signInWithPopup failed",
-      { code: e?.code ?? "unknown", errorMessage: e?.message ?? String(err) },
-      "H2",
-    );
 
     if (e.code === "auth/popup-blocked") {
-      debugLog(
-        "auth.ts:signInWithGoogle:redirectFallback",
-        "popup blocked, falling back to signInWithRedirect",
-        {
-          hostname:
-            typeof window !== "undefined" ? window.location.hostname : "unknown",
-        },
-        "H2",
-      );
       try {
         await signInWithRedirect(auth, googleSignInProvider);
         throw Object.assign(new Error(mapAuthError(err)), {
@@ -337,19 +226,8 @@ export async function signInWithGoogle(): Promise<GoogleSignInResult | AuthUser>
           redirecting: true,
         });
       } catch (redirectErr) {
-        const re = redirectErr as { code?: string; redirecting?: boolean };
+        const re = redirectErr as { redirecting?: boolean };
         if (re.redirecting) throw redirectErr;
-        debugLog(
-          "auth.ts:signInWithGoogle:redirectError",
-          "signInWithRedirect failed",
-          {
-            code: re?.code ?? "unknown",
-            errorMessage:
-              (redirectErr as { message?: string })?.message ??
-              String(redirectErr),
-          },
-          "H2",
-        );
         throw redirectErr;
       }
     }
@@ -357,6 +235,7 @@ export async function signInWithGoogle(): Promise<GoogleSignInResult | AuthUser>
     throw err;
   }
 }
+
 
 export async function signOutUser(): Promise<void> {
   if (isFirebaseConfigured()) {
@@ -397,159 +276,107 @@ export function useAuth() {
 
     let active = true;
     let loadingSettled = false;
+    const pendingRedirect = isLikelyAuthRedirectReturn();
 
-    const settleLoading = (reason: string) => {
+    const settleLoading = () => {
       if (!active || loadingSettled) return;
       loadingSettled = true;
-      debugLog(
-        "auth.ts:useAuth:settleLoading",
-        "auth loading settled",
-        { reason },
-        "H2",
-      );
       setLoading(false);
     };
 
-    const authCheckTimeout = window.setTimeout(() => {
-      debugLog(
-        "auth.ts:useAuth:timeout",
-        "auth check exceeded timeout, forcing loading false",
-        { timeoutMs: AUTH_CHECK_TIMEOUT_MS },
-        "H2",
-      );
-      settleLoading("timeout");
-    }, AUTH_CHECK_TIMEOUT_MS);
+    let safetyTimeout: number | undefined;
+    if (pendingRedirect) {
+      safetyTimeout = window.setTimeout(() => {
+        settleLoading();
+      }, REDIRECT_SAFETY_TIMEOUT_MS);
+    }
 
-    void (async () => {
-      try {
-        const auth = getFirebaseAuth();
-        const redirectResult = await Promise.race([
-          resolveRedirectResult(auth),
-          new Promise<GoogleSignInResult | null>((resolve) => {
-            window.setTimeout(() => {
-              debugLog(
-                "auth.ts:useAuth:redirectResultTimeout",
-                "getRedirectResult exceeded timeout, continuing without it",
-                { timeoutMs: AUTH_CHECK_TIMEOUT_MS },
-                "H2",
-              );
-              resolve(null);
-            }, AUTH_CHECK_TIMEOUT_MS);
-          }),
-        ]);
-        if (redirectResult && active) {
-          const mapped = applyGoogleSignInResult(redirectResult);
-          setUser(mapped);
-          setSignInError(null);
-          void requestGoogleCalendarAccess(redirectResult.user).then((token) => {
-            if (token && active) {
-              storeGoogleAccessToken(token);
-            }
-          });
-        }
-      } catch (err) {
-        if (active) {
-          setSignInError(mapAuthError(err));
-          debugLog(
-            "auth.ts:useAuth:redirectResult:error",
-            "getRedirectResult failed",
-            {
-              code: (err as { code?: string })?.code ?? "unknown",
-              errorMessage:
-                (err as { message?: string })?.message ?? String(err),
-            },
-            "H2",
-          );
-        }
-        settleLoading("redirect-error");
+    const clearSafetyTimeout = () => {
+      if (safetyTimeout !== undefined) {
+        window.clearTimeout(safetyTimeout);
+        safetyTimeout = undefined;
       }
-    })();
+    };
 
     const unsubscribe = onAuthStateChanged(getFirebaseAuth(), (firebaseUser) => {
-      try {
-        if (active) {
-          setUser(firebaseUser ? mapFirebaseUser(firebaseUser) : null);
+      if (active) {
+        if (firebaseUser) {
+          setUser(mapFirebaseUser(firebaseUser));
+        } else {
+          setUser(null);
+          setUser(null);
         }
-      } finally {
-        window.clearTimeout(authCheckTimeout);
-        settleLoading("onAuthStateChanged");
+      }
+
+      if (!pendingRedirect) {
+        clearSafetyTimeout();
+        settleLoading();
+      } else if (firebaseUser) {
+        clearSafetyTimeout();
+        settleLoading();
       }
     });
 
+    if (pendingRedirect) {
+      void (async () => {
+        try {
+          const auth = getFirebaseAuth();
+          const redirectResult = await Promise.race([
+            resolveRedirectResult(auth),
+            new Promise<GoogleSignInResult | null>((resolve) => {
+              window.setTimeout(() => resolve(null), REDIRECT_RETURN_TIMEOUT_MS);
+            }),
+          ]);
+          if (redirectResult && active) {
+            const mapped = applyGoogleSignInResult(redirectResult);
+            setUser(mapped);
+            setSignInError(null);
+          }
+        } catch (err) {
+          if (active) {
+            setSignInError(mapAuthError(err));
+          }
+        } finally {
+          clearSafetyTimeout();
+          settleLoading();
+        }
+      })();
+    }
+
     return () => {
       active = false;
-      window.clearTimeout(authCheckTimeout);
+      clearSafetyTimeout();
       unsubscribe();
     };
   }, [firebaseReady]);
 
   const handleSignIn = useCallback(async () => {
-    debugLog(
-      "auth.ts:handleSignIn:entry",
-      "handleSignIn invoked",
-      {
-        firebaseReady,
-        hostname:
-          typeof window !== "undefined" ? window.location.hostname : "unknown",
-      },
-      "H3",
-    );
     setSignInError(null);
     setSignInLoading(true);
     try {
       const result = await signInWithGoogle();
       if ("uid" in result) {
         setUser(result);
-        debugLog(
-          "auth.ts:handleSignIn:setUserMock",
-          "setUser after mock sign-in",
-          { uid: result.uid },
-          "H5",
-        );
       } else {
         setUser(applyGoogleSignInResult(result));
-        debugLog(
-          "auth.ts:handleSignIn:setUserFirebase",
-          "setUser after firebase sign-in",
-          { uid: result.user.uid },
-          "H5",
-        );
-        void requestGoogleCalendarAccess(result.user).then((token) => {
-          if (token) storeGoogleAccessToken(token);
-        });
       }
       setSignInError(null);
     } catch (err) {
-      const e = err as { code?: string; message?: string; redirecting?: boolean };
+      const e = err as { redirecting?: boolean };
       if (e.redirecting) {
-        debugLog(
-          "auth.ts:handleSignIn:redirecting",
-          "signInWithRedirect initiated, awaiting return navigation",
-          { code: e.code ?? "unknown" },
-          "H3",
-        );
         return;
       }
       setSignInError(mapAuthError(err));
-      debugLog(
-        "auth.ts:handleSignIn:uncaught",
-        "handleSignIn caught error",
-        {
-          code: e?.code ?? "unknown",
-          errorMessage: e?.message ?? String(err),
-          redirecting: false,
-        },
-        "H3",
-      );
     } finally {
       setSignInLoading(false);
     }
-  }, [firebaseReady]);
+  }, []);
 
   const handleSignOut = useCallback(async () => {
     await signOutUser();
     setUser(null);
   }, []);
+
 
   return {
     user,

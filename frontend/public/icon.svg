@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="80 168 295 260" fill="none" role="img" aria-label="Sidequest">
+  <!-- path dots -->
+  <circle cx="108" cy="340" r="9" fill="currentColor" opacity="0.2"/>
+  <circle cx="148" cy="356" r="7" fill="currentColor" opacity="0.3"/>
+  <circle cx="186" cy="366" r="5" fill="currentColor" opacity="0.4"/>
+  <!-- stickman -->
+  <g stroke="currentColor" stroke-width="20" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M248 362 L226 412"/>
+    <path d="M248 362 L276 412"/>
+    <path d="M248 362 L248 288"/>
+    <path d="M248 314 L210 340"/>
+    <path d="M248 302 L296 266"/>
+  </g>
+  <circle cx="248" cy="246" r="36" fill="currentColor"/>
+  <!-- quest marker -->
+  <circle cx="322" cy="224" r="40" stroke="currentColor" stroke-width="16" fill="none"/>
+  <text x="322" y="240" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="44" font-weight="800" fill="currentColor">!</text>
+</svg>

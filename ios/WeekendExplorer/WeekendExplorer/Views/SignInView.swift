@@ -17,7 +17,7 @@ struct SignInView: View {
                 Spacer()
 
                 VStack(spacing: 24) {
-                    BrandLogo(size: 56, cornerRadius: 16, fontSize: 22)
+                    BrandLogo(size: 56)
 
                     VStack(spacing: 12) {
                         Text("Sidequest")
@@ -74,6 +74,7 @@ struct SignInView: View {
                 Spacer()
             }
         }
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("signInView")
     }
 }

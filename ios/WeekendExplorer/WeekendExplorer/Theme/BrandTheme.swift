@@ -104,13 +104,19 @@ extension Color {
 
     var hexString: String {
         #if canImport(UIKit)
-        guard let components = UIColor(self).cgColor.components, components.count >= 3 else {
+        var red: CGFloat = 0
+        var green: CGFloat = 0
+        var blue: CGFloat = 0
+        var alpha: CGFloat = 0
+        guard UIColor(self).getRed(&red, green: &green, blue: &blue, alpha: &alpha) else {
             return "#000000"
         }
-        let red = Int(components[0] * 255)
-        let green = Int(components[1] * 255)
-        let blue = Int(components[2] * 255)
-        return String(format: "#%02x%02x%02x", red, green, blue)
+        return String(
+            format: "#%02x%02x%02x",
+            Int((red * 255).rounded()),
+            Int((green * 255).rounded()),
+            Int((blue * 255).rounded())
+        )
         #else
         return "#000000"
         #endif

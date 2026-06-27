@@ -9,6 +9,17 @@
       "firebase-debug.*.log"
     ]
   },
+  "hosting": {
+    "public": "hosting-public",
+    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+    "redirects": [
+      {
+        "source": "**",
+        "destination": "https://weekend-explorer--perfect-weekend-planner.us-central1.hosted.app",
+        "type": 302
+      }
+    ]
+  },
   "firestore": {
     "rules": "firestore.rules",
     "indexes": "firestore.indexes.json",
@@ -19,7 +30,13 @@
       "googleSignIn": {
         "oAuthBrandDisplayName": "Sidequest",
         "supportEmail": "dzakwan1844@gmail.com",
-        "authorizedDomains": ["localhost", "127.0.0.1"]
+        "authorizedDomains": [
+          "localhost",
+          "127.0.0.1",
+          "perfect-weekend-planner.firebaseapp.com",
+          "perfect-weekend-planner.web.app",
+          "weekend-explorer--perfect-weekend-planner.us-central1.hosted.app"
+        ]
       }
     }
   }

@@ -1,53 +1,57 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import ProfileOnboarding from "../ProfileOnboarding";
+
+async function advanceToBudget(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole("button", { name: "London" }));
+  await user.click(screen.getByRole("button", { name: /let's go/i }));
+}
+
+async function advanceToDiet(user: ReturnType<typeof userEvent.setup>) {
+  await advanceToBudget(user);
+  await user.click(screen.getByRole("button", { name: /next/i }));
+}
+
+async function advanceToActivities(user: ReturnType<typeof userEvent.setup>) {
+  await advanceToDiet(user);
+  await user.click(screen.getByRole("button", { name: "Vegan" }));
+  await user.click(screen.getByRole("button", { name: /next/i }));
+}
+
+async function advanceToAccessibility(user: ReturnType<typeof userEvent.setup>) {
+  await advanceToActivities(user);
+  await user.click(screen.getByRole("button", { name: "Live music" }));
+  await user.click(screen.getByRole("button", { name: /next/i }));
+}
+
+async function advanceToConnections(user: ReturnType<typeof userEvent.setup>) {
+  await advanceToAccessibility(user);
+  await user.click(screen.getByRole("button", { name: /next/i }));
+}
 
 describe("ProfileOnboarding", () => {
   it("shows validation error when home city is empty", async () => {
     const user = userEvent.setup();
     render(<ProfileOnboarding onComplete={vi.fn()} />);
 
-    await user.click(screen.getByRole("button", { name: /start exploring/i }));
+    await user.click(screen.getByRole("button", { name: /let's go/i }));
 
-    expect(screen.getByText("Home city is required.")).toBeInTheDocument();
-  });
-
-  it("shows validation error for invalid budget", async () => {
-    const user = userEvent.setup();
-    const { container } = render(<ProfileOnboarding onComplete={vi.fn()} />);
-
-    await user.type(
-      screen.getByPlaceholderText("Austin, TX"),
-      "Austin, TX",
-    );
-    await user.clear(screen.getByPlaceholderText("150"));
-    await user.type(screen.getByPlaceholderText("150"), "0");
-    await user.type(
-      screen.getByPlaceholderText("Vegan, nut-free, halal…"),
-      "vegan",
-    );
-    await user.click(screen.getByRole("button", { name: "Live music" }));
-
-    fireEvent.submit(container.querySelector("form")!);
-
-    expect(screen.getByText("Enter a valid weekend budget.")).toBeInTheDocument();
+    expect(
+      screen.getByText(/pick a city or type your own/i),
+    ).toBeInTheDocument();
   });
 
   it("shows validation error when diet is missing", async () => {
     const user = userEvent.setup();
     render(<ProfileOnboarding onComplete={vi.fn()} />);
 
-    await user.type(
-      screen.getByPlaceholderText("Austin, TX"),
-      "Austin, TX",
-    );
-    await user.click(screen.getByRole("button", { name: "Outdoors" }));
-    await user.click(screen.getByRole("button", { name: /start exploring/i }));
+    await advanceToDiet(user);
+    await user.click(screen.getByRole("button", { name: /next/i }));
 
     expect(
-      screen.getByText("Diet preferences help us filter restaurants."),
+      screen.getByText(/tap at least one diet option/i),
     ).toBeInTheDocument();
   });
 
@@ -55,71 +59,91 @@ describe("ProfileOnboarding", () => {
     const user = userEvent.setup();
     render(<ProfileOnboarding onComplete={vi.fn()} />);
 
-    await user.type(
-      screen.getByPlaceholderText("Austin, TX"),
-      "Austin, TX",
-    );
-    await user.type(
-      screen.getByPlaceholderText("Vegan, nut-free, halal…"),
-      "vegan",
-    );
-    await user.click(screen.getByRole("button", { name: /start exploring/i }));
+    await advanceToActivities(user);
+    await user.click(screen.getByRole("button", { name: /next/i }));
 
     expect(
-      screen.getByText("Pick at least one activity interest."),
+      screen.getByText(/pick at least one vibe/i),
     ).toBeInTheDocument();
   });
 
-  it("calls onComplete with a valid profile on successful submit", async () => {
-    const user = userEvent.setup();
+  it("calls onComplete with a valid profile after celebration", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     const onComplete = vi.fn();
     render(<ProfileOnboarding onComplete={onComplete} />);
 
-    await user.type(
-      screen.getByPlaceholderText("Austin, TX"),
-      "Austin, TX",
+    await advanceToAccessibility(user);
+    await user.click(
+      screen.getByRole("button", { name: "Wheelchair accessible" }),
     );
-    await user.clear(screen.getByPlaceholderText("150"));
-    await user.type(screen.getByPlaceholderText("150"), "200");
-    await user.type(
-      screen.getByPlaceholderText("Vegan, nut-free, halal…"),
-      "vegan",
-    );
-    await user.click(screen.getByRole("button", { name: "Live music" }));
-    await user.type(
-      screen.getByPlaceholderText("Wheelchair accessible venues…"),
-      "wheelchair access",
-    );
-    await user.click(screen.getByRole("button", { name: /start exploring/i }));
+    await user.click(screen.getByRole("button", { name: /next/i }));
+    await user.click(screen.getByRole("button", { name: /next/i }));
 
-    expect(onComplete).toHaveBeenCalledOnce();
+    expect(screen.getByText(/you're in/i)).toBeInTheDocument();
+
+    await vi.advanceTimersByTimeAsync(2300);
+
+    await waitFor(() => {
+      expect(onComplete).toHaveBeenCalledOnce();
+    });
+
     expect(onComplete).toHaveBeenCalledWith(
       expect.objectContaining({
-        homeCity: "Austin, TX",
-        budget: 200,
-        diet: "vegan",
+        homeCity: "London",
+        budget: 150,
+        diet: "Vegan",
         activities: "Live music",
-        accessibility: "wheelchair access",
+        accessibility: "Wheelchair accessible",
         onboardingComplete: true,
       }),
     );
+
+    vi.useRealTimers();
   });
 
-  it("pre-fills fields from initial profile", () => {
+  it("allows skipping accessibility", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    const onComplete = vi.fn();
+    render(<ProfileOnboarding onComplete={onComplete} />);
+
+    await advanceToAccessibility(user);
+    await user.click(screen.getByRole("button", { name: "Skip" }));
+    await user.click(screen.getByRole("button", { name: /next/i }));
+
+    await vi.advanceTimersByTimeAsync(2300);
+
+    await waitFor(() => {
+      expect(onComplete).toHaveBeenCalledOnce();
+    });
+
+    expect(onComplete).toHaveBeenCalledWith(
+      expect.objectContaining({
+        accessibility: undefined,
+      }),
+    );
+
+    vi.useRealTimers();
+  });
+
+  it("pre-fills fields from initial profile", async () => {
+    const user = userEvent.setup();
     render(
       <ProfileOnboarding
         onComplete={vi.fn()}
         initial={{
           homeCity: "Portland, OR",
           budget: 120,
-          diet: "vegetarian",
+          diet: "Vegetarian",
           activities: "Markets",
         }}
       />,
     );
 
     expect(screen.getByDisplayValue("Portland, OR")).toBeInTheDocument();
-    expect(screen.getByDisplayValue("120")).toBeInTheDocument();
-    expect(screen.getByDisplayValue("vegetarian")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /let's go/i }));
+    expect(screen.getByText("£120")).toBeInTheDocument();
   });
 });

@@ -9,6 +9,7 @@ from typing import Any
 
 from tavily import TavilyClient
 
+from event_images import image_for_event
 from models import (
     CandidateItem,
     DiscoverEvent,
@@ -18,8 +19,8 @@ from models import (
 )
 from prometheux_filter import (
     PrometheuxConfigError,
+    PrometheuxEngineBusyError,
     PrometheuxSDKError,
-    compute_passed_rules,
     filter_candidates,
 )
 
@@ -96,11 +97,6 @@ def _infer_category(text: str) -> str:
     return "Local event"
 
 
-def _image_for_event(event_id: str, category: str) -> str:
-    seed = hashlib.md5(f"{event_id}-{category}".encode()).hexdigest()[:10]
-    return f"https://picsum.photos/seed/{seed}/640/400"
-
-
 def _extract_date_hint(text: str) -> str | None:
     patterns = [
         r"\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{1,2}(?:,\s*\d{4})?\b",
@@ -128,42 +124,6 @@ def _extract_tags(text: str, context: UserConstraintContext | None) -> str:
     return ",".join(dict.fromkeys(matched)) or category
 
 
-def _mock_events(location: str) -> list[DiscoverEvent]:
-    base = _city_center(location)
-    samples = [
-        ("Rooftop Jazz & Wine Popup", "Popup", "Sunset live music with local vintners on a downtown rooftop."),
-        ("Indie Dev Conference Day Pass", "Conference", "Talks, demos, and hallway track for builders this Saturday."),
-        ("Neighborhood Street Festival", "Festival", "Food trucks, artisan stalls, and family activities all weekend."),
-        ("Craft Beer Pub Crawl", "Pub hangout", "Guided tasting route through three beloved local pubs."),
-        ("Weekend Makers Market", "Market", "Pop-up stalls featuring ceramics, prints, and small-batch goods."),
-        ("Outdoor Film Night", "Concert", "Classic movies under the stars in the city park."),
-        ("Day Trip: Coastal Hike Shuttle", "Travel", "Organized shuttle and guided coastal trail experience."),
-        ("Gallery Opening: New Voices", "Art", "Opening reception with emerging local artists and bites."),
-    ]
-    events: list[DiscoverEvent] = []
-    for idx, (title, category, description) in enumerate(samples, start=1):
-        event_id = f"mock_{idx}"
-        lat, lng = _jitter_coords(base, event_id)
-        price, price_label = _estimate_price(description)
-        events.append(
-            DiscoverEvent(
-                id=event_id,
-                title=title,
-                description=description,
-                category=category,
-                image_url=_image_for_event(event_id, category),
-                price_estimate=price,
-                price_label=price_label,
-                location=location,
-                lat=lat,
-                lng=lng,
-                url=f"https://example.com/events/{event_id}",
-                date_hint="This weekend",
-            )
-        )
-    return events
-
-
 def _normalize_result(
     result: dict[str, Any],
     location: str,
@@ -183,7 +143,7 @@ def _normalize_result(
         title=title,
         description=snippet[:280] if snippet else f"Happening near {location} this weekend.",
         category=category,
-        image_url=_image_for_event(event_id, category),
+        image_url=image_for_event(title, category),
         price_estimate=price,
         price_label=price_label,
         location=location,
@@ -227,42 +187,50 @@ def _candidate_to_event(
     )
 
 
-def _annotate_unfiltered(
-    events: list[DiscoverEvent], context: UserConstraintContext | None
-) -> list[DiscoverEvent]:
-    if not context:
-        return events
-    annotated: list[DiscoverEvent] = []
-    for event in events:
-        candidate = _event_to_candidate(event, context)
-        rules = compute_passed_rules(candidate, context)
-        annotated.append(
-            event.model_copy(
-                update={
-                    "passed_rules": rules,
-                    "prometheux_verified": False,
-                    "match_score": len(rules),
-                }
+def _mock_events(location: str) -> list[DiscoverEvent]:
+    base = _city_center(location)
+    samples = [
+        ("Rooftop Jazz & Wine Popup", "Popup", "Sunset live music with local vintners on a downtown rooftop."),
+        ("Indie Dev Conference Day Pass", "Conference", "Talks, demos, and hallway track for builders this Saturday."),
+        ("Neighborhood Street Festival", "Festival", "Food trucks, artisan stalls, and family activities all weekend."),
+        ("Craft Beer Pub Crawl", "Pub hangout", "Guided tasting route through three beloved local pubs."),
+        ("Weekend Makers Market", "Market", "Pop-up stalls featuring ceramics, prints, and small-batch goods."),
+        ("Outdoor Film Night", "Concert", "Classic movies under the stars in the city park."),
+        ("Day Trip: Coastal Hike Shuttle", "Travel", "Organized shuttle and guided coastal trail experience."),
+        ("Gallery Opening: New Voices", "Art", "Opening reception with emerging local artists and bites."),
+    ]
+    events: list[DiscoverEvent] = []
+    for idx, (title, category, description) in enumerate(samples, start=1):
+        event_id = f"mock_{idx}"
+        lat, lng = _jitter_coords(base, event_id)
+        price, price_label = _estimate_price(description)
+        events.append(
+            DiscoverEvent(
+                id=event_id,
+                title=title,
+                description=description,
+                category=category,
+                image_url=image_for_event(title, category),
+                price_estimate=price,
+                price_label=price_label,
+                location=location,
+                lat=lat,
+                lng=lng,
+                url=f"https://example.com/events/{event_id}",
+                date_hint="This weekend",
             )
         )
-    return annotated
+    return events
 
 
-def discover_local_events(
+
+def _fetch_tavily_events(
     location: str,
-    context: UserConstraintContext | None = None,
-) -> DiscoverResponse:
-    location = location.strip()
-    if not location:
-        raise ValueError("location is required")
-
+    context: UserConstraintContext | None,
+) -> list[DiscoverEvent]:
     api_key = os.environ.get("TAVILY_API_KEY")
     if not api_key:
-        return DiscoverResponse(
-            location=location,
-            events=_mock_events(location),
-            source="mock",
-        )
+        raise RuntimeError("TAVILY_API_KEY is not set")
 
     client = TavilyClient(api_key=api_key)
     query = (
@@ -276,23 +244,57 @@ def discover_local_events(
         max_results=12,
     )
     results = response.get("results", [])
-    events = [
+    return [
         _normalize_result(result, location, idx, context)
         for idx, result in enumerate(results, start=1)
     ]
-    if not events:
-        events = _mock_events(location)
-        source = "mock"
+
+
+def discover_local_events(
+    location: str,
+    context: UserConstraintContext | None = None,
+) -> DiscoverResponse:
+    location = location.strip()
+    if not location:
+        raise ValueError("location is required")
+
+    api_key = os.environ.get("TAVILY_API_KEY")
+    if not api_key:
         center = _city_center(location)
         return DiscoverResponse(
             location=location,
-            events=events,
-            source=source,
+            events=_mock_events(location),
+            source="mock",
             center_lat=center[0],
             center_lng=center[1],
         )
 
+    events: list[DiscoverEvent] = []
     source = "tavily"
+
+    try:
+        events = _fetch_tavily_events(location, context)
+    except Exception as exc:
+        logger.warning("Tavily discover failed (%s) — falling back to mock events", exc)
+        center = _city_center(location)
+        return DiscoverResponse(
+            location=location,
+            events=_mock_events(location),
+            source="mock",
+            center_lat=center[0],
+            center_lng=center[1],
+        )
+
+    if not events:
+        center = _city_center(location)
+        return DiscoverResponse(
+            location=location,
+            events=_mock_events(location),
+            source="mock",
+            center_lat=center[0],
+            center_lng=center[1],
+        )
+
     center = _city_center(location)
     filter_stats: FilterStats | None = None
 
@@ -316,7 +318,7 @@ def discover_local_events(
                 filter_method=filter_result.filter_method,
                 concept_name=filter_result.concept_name,
             )
-        except (PrometheuxConfigError, PrometheuxSDKError):
+        except (PrometheuxConfigError, PrometheuxEngineBusyError, PrometheuxSDKError):
             raise
         except Exception as exc:
             raise PrometheuxSDKError(f"Prometheux discover filter failed: {exc}") from exc

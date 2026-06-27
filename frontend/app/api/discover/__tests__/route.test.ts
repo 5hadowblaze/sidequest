@@ -93,6 +93,7 @@ describe("GET /api/discover", () => {
       vi.fn().mockResolvedValue({
         ok: false,
         status: 503,
+        headers: new Headers({ "Retry-After": "30" }),
         json: async () => ({ detail: "Service unavailable" }),
       }),
     );
@@ -100,6 +101,7 @@ describe("GET /api/discover", () => {
     const response = await GET(makeDiscoverRequest({ location: "Austin, TX" }));
 
     expect(response.status).toBe(503);
+    expect(response.headers.get("Retry-After")).toBe("30");
     await expect(response.json()).resolves.toEqual({
       detail: "Service unavailable",
     });

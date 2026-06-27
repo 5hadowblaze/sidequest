@@ -1,37 +1,78 @@
 import SwiftUI
 
-/// Gradient "S" badge matching the Sidequest web app.
+/// Simple black-and-white stickman on a side quest.
 struct BrandLogo: View {
     var size: CGFloat = 36
-    var cornerRadius: CGFloat = 10
-    var fontSize: CGFloat = 16
-
-    private static let googleBlue = Color(hex: "#4285f4")
-    private static let googleGreen = Color(hex: "#34a853")
-    private static let googleYellow = Color(hex: "#fbbc04")
 
     var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                .fill(
-                    LinearGradient(
-                        colors: [Self.googleBlue, Self.googleGreen, Self.googleYellow],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-                .shadow(color: .black.opacity(0.08), radius: 4, y: 2)
+        StickmanQuestIcon()
+            .foregroundStyle(BrandTheme.textPrimary)
+            .frame(width: size, height: size)
+            .accessibilityLabel("Sidequest")
+    }
+}
 
-            Text("S")
-                .font(.system(size: fontSize, weight: .bold, design: .rounded))
-                .foregroundStyle(.white)
+private struct StickmanQuestIcon: View {
+    var body: some View {
+        GeometryReader { geo in
+            let w = geo.size.width
+            let h = geo.size.height
+            let stroke = max(w * 0.055, 1.5)
+
+            ZStack {
+                Circle()
+                    .fill(.primary.opacity(0.2))
+                    .frame(width: w * 0.11)
+                    .position(x: w * 0.17, y: h * 0.73)
+                Circle()
+                    .fill(.primary.opacity(0.3))
+                    .frame(width: w * 0.09)
+                    .position(x: w * 0.27, y: h * 0.77)
+                Circle()
+                    .fill(.primary.opacity(0.4))
+                    .frame(width: w * 0.07)
+                    .position(x: w * 0.35, y: h * 0.8)
+
+                Path { path in
+                    path.move(to: CGPoint(x: w * 0.46, y: h * 0.8))
+                    path.addLine(to: CGPoint(x: w * 0.41, y: h * 0.94))
+                    path.move(to: CGPoint(x: w * 0.46, y: h * 0.8))
+                    path.addLine(to: CGPoint(x: w * 0.52, y: h * 0.94))
+                    path.move(to: CGPoint(x: w * 0.46, y: h * 0.8))
+                    path.addLine(to: CGPoint(x: w * 0.46, y: h * 0.56))
+                    path.move(to: CGPoint(x: w * 0.46, y: h * 0.68))
+                    path.addLine(to: CGPoint(x: w * 0.38, y: h * 0.76))
+                    path.move(to: CGPoint(x: w * 0.46, y: h * 0.63))
+                    path.addLine(to: CGPoint(x: w * 0.57, y: h * 0.51))
+                }
+                .stroke(.primary, style: StrokeStyle(lineWidth: stroke, lineCap: .round, lineJoin: .round))
+
+                Circle()
+                    .fill(.primary)
+                    .frame(width: w * 0.17)
+                    .position(x: w * 0.46, y: h * 0.46)
+
+                Circle()
+                    .strokeBorder(.primary, lineWidth: stroke * 1.1)
+                    .frame(width: w * 0.22)
+                    .overlay {
+                        Text("!")
+                            .font(.system(size: w * 0.14, weight: .heavy, design: .rounded))
+                            .foregroundStyle(.primary)
+                            .offset(y: -w * 0.01)
+                    }
+                    .position(x: w * 0.67, y: h * 0.41)
+            }
         }
-        .frame(width: size, height: size)
-        .accessibilityLabel("Sidequest")
+        .aspectRatio(1, contentMode: .fit)
     }
 }
 
 #Preview {
-    BrandLogo(size: 56, cornerRadius: 14, fontSize: 22)
-        .padding()
+    HStack(spacing: 16) {
+        BrandLogo(size: 36)
+        BrandLogo(size: 56)
+        BrandLogo(size: 80)
+    }
+    .padding()
 }

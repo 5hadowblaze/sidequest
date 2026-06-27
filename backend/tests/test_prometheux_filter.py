@@ -9,14 +9,22 @@ from prometheux_filter import (
     CONCEPT_NAME,
     FilterResult,
     PrometheuxConfigError,
+    PrometheuxEngineBusyError,
     PrometheuxSDKError,
+    _format_sdk_error,
+    _is_concept_exists_conflict,
+    _is_concept_not_found_error,
+    _is_concept_overwrite_warning,
+    _is_engine_busy_error,
     _parse_matches_rows,
+    _program_hash,
     build_vadalog_program,
     compute_passed_rules,
     context_from_plan,
     filter_candidates,
     sanitize_vadalog_string,
 )
+import prometheux_filter as pf
 
 
 def test_sanitize_vadalog_string_strips_quotes_and_backslashes() -> None:
@@ -181,8 +189,11 @@ def test_filter_with_sdk_calls_run_concept(
     sample_candidates,
     sample_context,
 ) -> None:
+    pf._saved_program_hash = None
+    pf._saved_run_concept_name = None
     mock_px = MagicMock()
     mock_px.list_projects.return_value = [{"id": "proj-1", "name": "weekend-planner"}]
+    mock_px.save_concept.return_value = {"id": "matches"}
     mock_px.run_concept.return_value = {
         "matches": [
             {
@@ -215,3 +226,225 @@ def test_load_prometheux_sdk_missing_token(monkeypatch: pytest.MonkeyPatch) -> N
 
     with pytest.raises(PrometheuxConfigError, match="PMTX_TOKEN"):
         _load_prometheux_sdk()
+
+
+def test_is_engine_busy_error_parses_http_409_payload() -> None:
+    exc = Exception(
+        'HTTP Error 409: {"status":"busy","message":"The engine is currently busy.",'
+        '"data":{"errorCode":"ENGINE_BUSY"}}'
+    )
+    assert _is_engine_busy_error(exc) is True
+    assert _is_concept_exists_conflict(exc) is False
+
+
+def test_is_concept_exists_conflict_detects_already_exists() -> None:
+    exc = Exception("HTTP Error 409: concept already exists")
+    assert _is_engine_busy_error(exc) is False
+    assert _is_concept_exists_conflict(exc) is True
+
+
+def test_is_concept_overwrite_warning_detects_matches_conflict() -> None:
+    exc = Exception(
+        'HTTP Error 409: {"status":"conflict","message":"A concept named '
+        "'matches' already exists. Saving will overwrite it.\",\"data\":null}"
+    )
+    assert _is_engine_busy_error(exc) is False
+    assert _is_concept_overwrite_warning(exc) is True
+    assert _is_concept_exists_conflict(exc) is True
+
+
+@patch("prometheux_filter.time.sleep")
+def test_filter_with_sdk_handles_overwrite_warning_409(
+    mock_sleep: MagicMock,
+    sample_candidates,
+    sample_context,
+) -> None:
+    pf._saved_program_hash = None
+    pf._last_prometheux_job_end = 0.0
+    mock_px = MagicMock()
+    mock_px.list_projects.return_value = [{"id": "proj-1", "name": "weekend-planner"}]
+    overwrite_error = Exception(
+        'HTTP Error 409: {"status":"conflict","message":"A concept named '
+        "'matches' already exists. Saving will overwrite it.\",\"data\":null}"
+    )
+    mock_px.save_concept.side_effect = [overwrite_error, {"id": "matches"}]
+    mock_px.run_concept.return_value = {
+        "matches": [
+            {
+                "id": "evt_1",
+                "type": "event",
+                "title": "Saturday Jazz in Austin",
+                "url": "https://example.com/jazz",
+                "price_estimate": 25.0,
+                "location": "Austin, TX",
+                "tags": "music",
+            }
+        ]
+    }
+
+    with patch("prometheux_filter._load_prometheux_sdk", return_value=mock_px):
+        from prometheux_filter import _filter_with_sdk
+
+        program = build_vadalog_program(sample_candidates, sample_context)
+        filtered = _filter_with_sdk(program)
+
+    assert len(filtered) == 1
+    assert filtered[0].id == "evt_1"
+    assert mock_px.save_concept.call_count == 2
+    assert mock_px.save_concept.call_args_list[1].kwargs["existing_name"] == "matches"
+    mock_px.run_concept.assert_called_once_with(
+        project_id="proj-1", concept_name="matches"
+    )
+
+
+@patch("prometheux_filter.time.sleep")
+def test_filter_with_sdk_confirms_overwrite_with_concept_name(
+    mock_sleep: MagicMock,
+    sample_candidates,
+    sample_context,
+) -> None:
+    pf._saved_program_hash = None
+    pf._last_prometheux_job_end = 0.0
+    mock_px = MagicMock()
+    mock_px.list_projects.return_value = [{"id": "proj-1", "name": "weekend-planner"}]
+    overwrite_error = Exception(
+        'HTTP Error 409: {"status":"conflict","message":"A concept named '
+        "'matches' already exists. Saving will overwrite it.\",\"data\":null}"
+    )
+    mock_px.save_concept.side_effect = [overwrite_error, {"id": "matches"}]
+    mock_px.run_concept.return_value = {"matches": []}
+
+    with patch("prometheux_filter._load_prometheux_sdk", return_value=mock_px):
+        from prometheux_filter import _filter_with_sdk
+
+        program = build_vadalog_program(sample_candidates, sample_context)
+        _filter_with_sdk(program)
+
+    assert mock_px.save_concept.call_count == 2
+    assert mock_px.save_concept.call_args_list[0].kwargs["concept_name"] == CONCEPT_NAME
+    assert mock_px.save_concept.call_args_list[0].kwargs["output_predicate"] == "matches"
+    assert mock_px.save_concept.call_args_list[1].kwargs["existing_name"] == "matches"
+
+
+def test_format_sdk_error_distinguishes_engine_busy() -> None:
+    busy = PrometheuxEngineBusyError("engine busy after retries")
+    assert "engine is busy" in _format_sdk_error(busy).lower()
+    assert "PMTX_TOKEN" not in _format_sdk_error(busy)
+
+
+def test_format_sdk_error_distinguishes_auth_failure() -> None:
+    exc = Exception("HTTP Error 401: unauthorized")
+    assert "authentication failed" in _format_sdk_error(exc).lower()
+    assert "PMTX_TOKEN" in _format_sdk_error(exc)
+
+
+@patch("prometheux_filter.time.sleep")
+def test_filter_with_sdk_retries_on_engine_busy(
+    mock_sleep: MagicMock,
+    sample_candidates,
+    sample_context,
+) -> None:
+    pf._saved_program_hash = None
+    pf._last_prometheux_job_end = 0.0
+    mock_px = MagicMock()
+    mock_px.list_projects.return_value = [{"id": "proj-1", "name": "weekend-planner"}]
+    busy_error = Exception(
+        'HTTP Error 409: {"status":"busy","data":{"errorCode":"ENGINE_BUSY"}}'
+    )
+    mock_px.save_concept.side_effect = [busy_error, {"id": "matches"}]
+    mock_px.run_concept.return_value = {
+        "matches": [
+            {
+                "id": "evt_1",
+                "type": "event",
+                "title": "Saturday Jazz in Austin",
+                "url": "https://example.com/jazz",
+                "price_estimate": 25.0,
+                "location": "Austin, TX",
+                "tags": "music",
+            }
+        ]
+    }
+
+    with patch("prometheux_filter._load_prometheux_sdk", return_value=mock_px):
+        from prometheux_filter import _filter_with_sdk
+
+        program = build_vadalog_program(sample_candidates, sample_context)
+        filtered = _filter_with_sdk(program)
+
+    assert len(filtered) == 1
+    assert mock_px.save_concept.call_count == 2
+    mock_sleep.assert_called_once_with(2.0)
+
+
+@patch("prometheux_filter.time.sleep")
+def test_filter_with_sdk_skips_save_when_program_unchanged(
+    mock_sleep: MagicMock,
+    sample_candidates,
+    sample_context,
+) -> None:
+    pf._saved_program_hash = None
+    pf._last_prometheux_job_end = 0.0
+    mock_px = MagicMock()
+    mock_px.list_projects.return_value = [{"id": "proj-1", "name": "weekend-planner"}]
+    mock_px.run_concept.return_value = {"matches": []}
+
+    program = build_vadalog_program(sample_candidates, sample_context)
+    pf._saved_program_hash = _program_hash(program)
+
+    with patch("prometheux_filter._load_prometheux_sdk", return_value=mock_px):
+        from prometheux_filter import _filter_with_sdk
+
+        _filter_with_sdk(program)
+
+    mock_px.save_concept.assert_not_called()
+    mock_px.run_concept.assert_called_once()
+
+
+def test_is_concept_not_found_error_detects_500() -> None:
+    exc = Exception(
+        "HTTP Error 500: Concept 'weekend_planner_matches' not found in project 275037ac3d9"
+    )
+    assert _is_concept_not_found_error(exc) is True
+
+
+@patch("prometheux_filter.time.sleep")
+def test_filter_with_sdk_retries_on_concept_not_found(
+    mock_sleep: MagicMock,
+    sample_candidates,
+    sample_context,
+) -> None:
+    pf._saved_program_hash = None
+    pf._last_prometheux_job_end = 0.0
+    mock_px = MagicMock()
+    mock_px.list_projects.return_value = [{"id": "proj-1", "name": "weekend-planner"}]
+    not_found_error = Exception(
+        "HTTP Error 500: Concept 'weekend_planner_matches' not found in project proj-1"
+    )
+    match_row = {
+        "id": "evt_1",
+        "type": "event",
+        "title": "Saturday Jazz in Austin",
+        "url": "https://example.com/jazz",
+        "price_estimate": 25.0,
+        "location": "Austin, TX",
+        "tags": "music",
+    }
+    mock_px.run_concept.side_effect = [not_found_error, {"matches": [match_row]}]
+
+    program = build_vadalog_program(sample_candidates, sample_context)
+    pf._saved_program_hash = _program_hash(program)
+    pf._saved_run_concept_name = CONCEPT_NAME
+
+    with patch("prometheux_filter._load_prometheux_sdk", return_value=mock_px):
+        from prometheux_filter import _filter_with_sdk
+
+        filtered = _filter_with_sdk(program)
+
+    assert len(filtered) == 1
+    assert filtered[0].id == "evt_1"
+    assert mock_px.save_concept.call_count == 0
+    assert mock_px.run_concept.call_count == 2
+    assert mock_px.run_concept.call_args_list[0].kwargs["concept_name"] == CONCEPT_NAME
+    assert mock_px.run_concept.call_args_list[1].kwargs["concept_name"] == "matches"
+    assert pf._saved_run_concept_name == "matches"

@@ -88,7 +88,12 @@ export function getProfileStore(): ProfileStore {
 
 export function createDefaultProfile(
   partial: Pick<UserProfile, "homeCity" | "budget" | "diet" | "activities"> &
-    Partial<Pick<UserProfile, "accessibility">>,
+    Partial<
+      Pick<
+        UserProfile,
+        "accessibility" | "calendarConnected" | "connectedSources"
+      >
+    >,
 ): UserProfile {
   return {
     ...partial,

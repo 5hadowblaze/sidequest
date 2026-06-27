@@ -51,12 +51,12 @@ final class ExplorerViewModel {
         apiClient: APIClient = APIClient(),
         profileService: ProfileService = ProfileService(),
         calendarService: CalendarService = CalendarService(),
-        authService: AuthService = AuthService()
+        authService: AuthService? = nil
     ) {
         self.apiClient = apiClient
         self.profileService = profileService
         self.calendarService = calendarService
-        self.authService = authService
+        self.authService = authService ?? AuthService()
     }
 
     var selectedEvent: DiscoverEvent? {

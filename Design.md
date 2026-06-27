@@ -231,7 +231,8 @@ Firebase backs **Google Sign-In**, **Google Calendar read access** (free weekend
 
 | Item | Value |
 |------|-------|
-| Project ID | `perfect-weekend-planner` |
+| Project ID | `perfect-weekend-planner` (internal; do not rename) |
+| Display name | **Sidequest** (Firebase console + GCP project name; shown in Google account picker when OAuth consent app name is set) |
 | Console | https://console.firebase.google.com/project/perfect-weekend-planner/overview |
 | Web app | `perfect-weekend-planner-web` |
 | App ID | `1:1078602360488:web:116bf6e78076cc582a449d` |
@@ -241,7 +242,7 @@ Firebase backs **Google Sign-In**, **Google Calendar read access** (free weekend
 
 | Path | Purpose |
 |------|---------|
-| `firebase.json` | Firestore rules/indexes + Auth (Google provider, `localhost` authorized domain) |
+| `firebase.json` | Firestore rules/indexes + Auth (`oAuthBrandDisplayName`: **Sidequest**, Google provider, authorized domains) |
 | `.firebaserc` | Active project alias |
 | `firestore.rules` | Users may read/write only `users/{uid}` where `uid == request.auth.uid` |
 | `frontend/lib/firebase.ts` | App init from `NEXT_PUBLIC_FIREBASE_*` env vars |
@@ -250,11 +251,46 @@ Firebase backs **Google Sign-In**, **Google Calendar read access** (free weekend
 | `frontend/lib/firestore.ts` | `UserProfile` save/load (`homeCity`, `budget`, `diet`, `activities`, `accessibility`) |
 | `frontend/lib/profile.ts` | Profile store abstraction (Firestore or localStorage) |
 
+
+### Google Sign-In branding (what users see)
+
+Google’s account chooser typically shows:
+
+1. **App name** — **Sidequest** (from OAuth consent screen + Firebase Auth Google provider config).
+2. **“Continue to …”** — still shows the auth host (e.g. `perfect-weekend-planner.firebaseapp.com` or `localhost` during dev). That hostname is normal; it is not the product name.
+
+**Configured in repo** (`firebase.json` → `auth.providers.googleSignIn.oAuthBrandDisplayName`):
+
+```json
+"oAuthBrandDisplayName": "Sidequest"
+```
+
+**Deployed via CLI** (2026-06-26):
+
+```bash
+npx -y firebase-tools@latest deploy --only auth --project perfect-weekend-planner
+```
+
+This calls Firebase provisioning with `publicDisplayName: "Sidequest"` for Google sign-in.
+
+**Also updated via CLI/API** (project ID unchanged):
+
+| Setting | Command / API | Result |
+|---------|----------------|--------|
+| GCP project display name | `gcloud projects update perfect-weekend-planner --name="Sidequest"` | Console project title **Sidequest** |
+| Firebase project display name | `PATCH https://firebase.googleapis.com/v1beta1/projects/perfect-weekend-planner?updateMask=displayName` body `{"displayName":"Sidequest"}` | `firebase projects:list` shows **Sidequest** |
+| Authorized domains (+ `127.0.0.1`) | Identity Toolkit Admin API `PATCH .../config?updateMask=authorizedDomains` | Matches `firebase.json` local dev |
+
+**Manual step (required for OAuth consent app title on personal GCP projects):** IAP OAuth brand APIs require an organization, so set the **OAuth consent screen → App name** to **Sidequest** in [Google Cloud Console → OAuth consent screen](https://console.cloud.google.com/apis/credentials/consent?project=perfect-weekend-planner). Save; Google may take a few minutes to propagate. Support email should match `firebase.json` (`dzakwan1844@gmail.com`).
+
+Users should **not** see “Perfect Weekend Planner” after the above; they should see **Sidequest** as the app name, with “continue to” showing the Firebase auth domain.
+
 ### Authorized domains (Google Sign-In)
 
 Local dev and hosting URLs must appear under **Authentication → Settings → Authorized domains**. As of 2026-06-26 the project lists:
 
 - `localhost`
+- `127.0.0.1`
 - `perfect-weekend-planner.firebaseapp.com`
 - `perfect-weekend-planner.web.app`
 
@@ -277,7 +313,7 @@ curl -sS -X PATCH \
   -H "X-Goog-User-Project: perfect-weekend-planner" \
   -H "Content-Type: application/json" \
   "https://identitytoolkit.googleapis.com/admin/v2/projects/perfect-weekend-planner/config?updateMask=authorizedDomains" \
-  -d '{"authorizedDomains":["localhost","perfect-weekend-planner.firebaseapp.com","perfect-weekend-planner.web.app","YOUR_HOST"]}'
+  -d '{"authorizedDomains":["localhost","127.0.0.1","perfect-weekend-planner.firebaseapp.com","perfect-weekend-planner.web.app","YOUR_HOST"]}'
 ```
 
 Console: [Authentication → Settings → Authorized domains](https://console.firebase.google.com/project/perfect-weekend-planner/authentication/settings).

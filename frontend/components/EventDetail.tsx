@@ -1,7 +1,6 @@
 "use client";
 
-import Image from "next/image";
-
+import { getCategoryColors } from "@/lib/category-colors";
 import type { DiscoverEvent, PlannerStatus } from "@/lib/types";
 
 interface EventDetailProps {
@@ -20,22 +19,20 @@ export default function EventDetail({
   planError,
 }: EventDetailProps) {
   const isPlanning = planStatus === "planning";
+  const categoryColors = getCategoryColors(event.category);
 
   return (
-    <div className="flex h-full flex-col bg-white">
-      <div className="relative aspect-[16/9] shrink-0 overflow-hidden bg-[#f1f3f4]">
-        <Image
+    <div className="animate-slide-up flex h-full flex-col bg-surface">
+      <div className="relative aspect-[16/9] shrink-0 overflow-hidden bg-surface-muted">
+        <img
           src={event.image_url}
           alt={event.title}
-          fill
-          className="object-cover"
-          sizes="400px"
-          unoptimized
+          className="absolute inset-0 h-full w-full object-cover"
         />
         <button
           type="button"
           onClick={onClose}
-          className="absolute left-3 top-3 flex h-9 w-9 items-center justify-center rounded-full bg-white/95 text-[#5f6368] shadow-md transition hover:bg-white"
+          className="btn-press absolute left-3 top-3 flex h-9 w-9 items-center justify-center rounded-full border border-border bg-surface/95 text-muted shadow-md backdrop-blur-sm transition hover:bg-surface hover:text-foreground"
           aria-label="Close details"
         >
           ✕
@@ -44,19 +41,21 @@ export default function EventDetail({
 
       <div className="flex flex-1 flex-col overflow-y-auto p-5">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="rounded-full bg-[#e8f0fe] px-3 py-1 text-xs font-medium text-[#1a73e8]">
+          <span
+            className={`rounded-full px-3 py-1 text-xs font-semibold ${categoryColors.bg} ${categoryColors.text}`}
+          >
             {event.category}
           </span>
-          <span className="rounded-full bg-[#e6f4ea] px-3 py-1 text-xs font-semibold text-[#137333]">
+          <span className="rounded-full bg-teal-soft px-3 py-1 text-xs font-semibold text-teal-deep">
             {event.price_label}
           </span>
           {event.prometheux_verified && (
-            <span className="rounded-full bg-[#137333] px-3 py-1 text-xs font-semibold text-white">
+            <span className="rounded-full bg-teal px-3 py-1 text-xs font-semibold text-white">
               Prometheux verified
             </span>
           )}
           {event.date_hint && (
-            <span className="rounded-full bg-[#f1f3f4] px-3 py-1 text-xs text-[#5f6368]">
+            <span className="rounded-full bg-surface-muted px-3 py-1 text-xs text-muted">
               {event.date_hint}
             </span>
           )}
@@ -67,7 +66,7 @@ export default function EventDetail({
             {event.passed_rules!.map((rule) => (
               <span
                 key={rule}
-                className="rounded-full bg-[#e8f0fe] px-2.5 py-1 text-[11px] font-medium text-[#1a73e8]"
+                className="rounded-full bg-purple-soft px-2.5 py-1 text-[11px] font-medium text-purple-deep"
               >
                 {rule.replace(/_/g, " ")}
               </span>
@@ -75,28 +74,28 @@ export default function EventDetail({
           </div>
         )}
 
-        <h2 className="mt-4 text-xl font-medium leading-tight text-[#202124]">
+        <h2 className="mt-4 text-xl font-semibold leading-tight text-foreground">
           {event.title}
         </h2>
 
-        <p className="mt-3 text-sm leading-relaxed text-[#5f6368]">
+        <p className="mt-3 text-sm leading-relaxed text-muted">
           {event.description}
         </p>
 
-        <div className="mt-4 space-y-2 rounded-xl bg-[#f8f9fa] p-4 text-sm">
-          <p className="text-[#3c4043]">
-            <span className="font-medium text-[#202124]">Where:</span>{" "}
+        <div className="mt-4 space-y-2 rounded-xl bg-background p-4 text-sm">
+          <p className="text-foreground/80">
+            <span className="font-semibold text-foreground">Where:</span>{" "}
             {event.location}
           </p>
-          <p className="text-[#3c4043]">
-            <span className="font-medium text-[#202124]">Coordinates:</span>{" "}
+          <p className="text-foreground/80">
+            <span className="font-semibold text-foreground">Coordinates:</span>{" "}
             {event.lat.toFixed(4)}, {event.lng.toFixed(4)}
           </p>
           <a
             href={event.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 text-[#1a73e8] hover:underline"
+            className="inline-flex items-center gap-1 font-medium text-purple transition hover:text-purple-deep hover:underline"
           >
             View source →
           </a>
@@ -104,7 +103,7 @@ export default function EventDetail({
 
         <div className="mt-auto space-y-3 pt-6">
           {planError && (
-            <p className="rounded-xl border border-[#fce8e6] bg-[#fce8e6] px-4 py-3 text-sm text-[#c5221f]">
+            <p className="animate-fade-in rounded-xl border border-coral-soft bg-coral-soft px-4 py-3 text-sm text-coral-deep">
               {planError}
             </p>
           )}
@@ -113,21 +112,20 @@ export default function EventDetail({
             type="button"
             onClick={onPlan}
             disabled={isPlanning}
-            className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#1a73e8] px-6 py-3.5 text-sm font-medium text-white shadow-sm transition hover:bg-[#1765cc] disabled:cursor-not-allowed disabled:opacity-60"
+            className="btn-press inline-flex w-full items-center justify-center gap-2 rounded-full bg-purple px-6 py-3.5 text-sm font-semibold text-background shadow-md transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isPlanning ? (
               <>
-                <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                Planning with Prometheux…
+                <span className="h-4 w-4 animate-spin-gentle rounded-full border-2 border-background/30 border-t-background" />
+                Planning your quest…
               </>
             ) : (
-              "Plan this weekend"
+              "Plan this weekend ✨"
             )}
           </button>
 
-          <p className="text-center text-xs text-[#80868b]">
-            Uses your profile constraints + this event via Tavily → Prometheux →
-            Gemini
+          <p className="text-center text-xs text-muted-light">
+            Uses your profile + this event via Tavily → Prometheux → Gemini
           </p>
         </div>
       </div>

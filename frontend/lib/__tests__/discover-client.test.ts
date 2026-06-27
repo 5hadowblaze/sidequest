@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   discoverQueryFromProfile,
+  DiscoverError,
   fetchDiscoverEvents,
 } from "../discover-client";
 import type { DiscoverResponse, UserProfile } from "../types";
@@ -70,6 +71,7 @@ describe("fetchDiscoverEvents", () => {
       vi.fn().mockResolvedValue({
         ok: false,
         status: 502,
+        headers: new Headers(),
         json: async () => ({ detail: "Backend unavailable" }),
       }),
     );
@@ -79,12 +81,36 @@ describe("fetchDiscoverEvents", () => {
     ).rejects.toThrow("Backend unavailable");
   });
 
+  it("throws DiscoverError with retry-after on 503 response", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 503,
+        headers: new Headers({ "Retry-After": "30" }),
+        json: async () => ({ detail: "Prometheux engine busy" }),
+      }),
+    );
+
+    await expect(
+      fetchDiscoverEvents({ location: "Austin, TX" }),
+    ).rejects.toMatchObject({
+      message: "Prometheux engine busy",
+      status: 503,
+      retryAfterSeconds: 30,
+    });
+    await expect(
+      fetchDiscoverEvents({ location: "Austin, TX" }),
+    ).rejects.toBeInstanceOf(DiscoverError);
+  });
+
   it("throws fallback message when response has no detail", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue({
         ok: false,
         status: 500,
+        headers: new Headers(),
         json: async () => ({}),
       }),
     );

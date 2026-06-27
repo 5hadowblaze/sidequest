@@ -7,7 +7,9 @@ struct WeekendExplorerApp: App {
     @State private var viewModel = ExplorerViewModel()
 
     init() {
-        FirebaseApp.configure()
+        if AppConfig.isFirebaseConfigured {
+            FirebaseApp.configure()
+        }
     }
 
     var body: some Scene {
@@ -29,7 +31,9 @@ struct WeekendExplorerApp: App {
             }
             .environment(viewModel)
             .onOpenURL { url in
-                GIDSignIn.sharedInstance.handle(url)
+                if AppConfig.isFirebaseConfigured {
+                    GIDSignIn.sharedInstance.handle(url)
+                }
             }
         }
     }

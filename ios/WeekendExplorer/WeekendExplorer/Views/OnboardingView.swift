@@ -58,7 +58,7 @@ struct OnboardingView: View {
                 }
             }
         }
-        .onAppear(applyInitialValues)
+        .onAppear { applyInitialValues() }
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
     }

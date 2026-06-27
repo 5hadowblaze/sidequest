@@ -23,10 +23,13 @@ final class AuthService {
     !AppConfig.isFirebaseConfigured
   }
 
-  private let mockUserDefaultsKey = "sidequest-mock-user"
-  private var authStateHandle: Any?
+  private let mockUserDefaultsKey = "weekend-explorer-mock-user"
+  private nonisolated(unsafe) var authStateHandle: Any?
 
   init() {
+    if ProcessInfo.processInfo.arguments.contains("-uiTesting") {
+      UserDefaults.standard.removeObject(forKey: mockUserDefaultsKey)
+    }
     restoreSession()
   }
 
@@ -153,21 +156,24 @@ final class AuthService {
   }
 
   #if canImport(UIKit)
+  @MainActor
   private static func topViewController(
-    base: UIViewController? = UIApplication.shared.connectedScenes
+    base: UIViewController? = nil
+  ) -> UIViewController? {
+    let current = base ?? UIApplication.shared.connectedScenes
       .compactMap { ($0 as? UIWindowScene)?.keyWindow }
       .first?.rootViewController
-  ) -> UIViewController? {
-    if let nav = base as? UINavigationController {
+
+    if let nav = current as? UINavigationController {
       return topViewController(base: nav.visibleViewController)
     }
-    if let tab = base as? UITabBarController, let selected = tab.selectedViewController {
+    if let tab = current as? UITabBarController, let selected = tab.selectedViewController {
       return topViewController(base: selected)
     }
-    if let presented = base?.presentedViewController {
+    if let presented = current?.presentedViewController {
       return topViewController(base: presented)
     }
-    return base
+    return current
   }
   #endif
 }

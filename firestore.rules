@@ -17,6 +17,10 @@ rules_version = '2';
 //   - createdAt: timestamp (required, immutable)
 //   - updatedAt: timestamp (required)
 //
+// Subcollection: users/{uid}/events
+// Document ID: seed_001, seed_002, …
+// Fields mirror DiscoverEvent (title, lat, lng, category, …)
+//
 // ===============================================================
 
 service cloud.firestore {
@@ -59,6 +63,30 @@ service cloud.firestore {
       return request.resource.data.createdAt == resource.data.createdAt;
     }
 
+    function isValidSeedEvent() {
+      return request.resource.data.keys().hasOnly([
+          'title',
+          'description',
+          'category',
+          'image_url',
+          'price_estimate',
+          'price_label',
+          'location',
+          'lat',
+          'lng',
+          'url',
+          'date_hint',
+          'passed_rules',
+          'prometheux_verified',
+          'filter_method',
+          'match_score',
+          'seeded',
+        ])
+        && request.resource.data.title is string
+        && request.resource.data.lat is number
+        && request.resource.data.lng is number;
+    }
+
     function isValidUserProfile(userId) {
       return hasOnlyAllowedFields([
           'uid',
@@ -92,6 +120,12 @@ service cloud.firestore {
         && createdAtUnchanged()
         && isValidUserProfile(userId);
       allow delete: if isOwner(userId);
+
+      match /events/{eventId} {
+        allow read: if isOwner(userId);
+        allow create, update: if isOwner(userId) && isValidSeedEvent();
+        allow delete: if isOwner(userId);
+      }
     }
 
     match /{document=**} {

@@ -1,202 +1,256 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { useCallback, useState } from "react";
 
 import { createDefaultProfile } from "@/lib/profile";
 import type { UserProfile } from "@/lib/types";
 
-interface ProfileOnboardingProps {
+import OnboardingProgress from "./Onboarding/OnboardingProgress";
+import AccessibilityStep from "./Onboarding/steps/AccessibilityStep";
+import ActivitiesStep from "./Onboarding/steps/ActivitiesStep";
+import BudgetStep from "./Onboarding/steps/BudgetStep";
+import CelebrationStep from "./Onboarding/steps/CelebrationStep";
+import DietStep from "./Onboarding/steps/DietStep";
+import WelcomeCityStep from "./Onboarding/steps/WelcomeCityStep";
+import { joinList, parseList, toggleListItem } from "./Onboarding/utils";
+
+export interface ProfileOnboardingProps {
   onComplete: (profile: UserProfile) => void;
   initial?: Partial<UserProfile>;
 }
 
-const ACTIVITY_CHIPS = [
-  "Live music",
-  "Food & drink",
-  "Outdoors",
-  "Art & culture",
-  "Nightlife",
-  "Family-friendly",
-  "Tech meetups",
-  "Markets",
-];
+const STEP_IDS = [
+  "welcome",
+  "budget",
+  "diet",
+  "activities",
+  "accessibility",
+    "celebration",
+] as const;
+
+type StepId = (typeof STEP_IDS)[number];
 
 export default function ProfileOnboarding({
   onComplete,
   initial,
 }: ProfileOnboardingProps) {
-  const [homeCity, setHomeCity] = useState(initial?.homeCity ?? "");
-  const [budget, setBudget] = useState(String(initial?.budget ?? 150));
-  const [diet, setDiet] = useState(initial?.diet ?? "");
-  const [activities, setActivities] = useState(initial?.activities ?? "");
-  const [accessibility, setAccessibility] = useState(
-    initial?.accessibility ?? "",
-  );
+  const [stepIndex, setStepIndex] = useState(0);
+  const [direction, setDirection] = useState<"forward" | "back">("forward");
   const [error, setError] = useState<string | null>(null);
 
-  function toggleChip(chip: string) {
-    const parts = activities
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean);
-    if (parts.includes(chip)) {
-      setActivities(parts.filter((p) => p !== chip).join(", "));
-    } else {
-      setActivities([...parts, chip].join(", "));
-    }
-  }
+  const [homeCity, setHomeCity] = useState(initial?.homeCity ?? "");
+  const [budget, setBudget] = useState(initial?.budget ?? 150);
+  const [dietItems, setDietItems] = useState<string[]>(
+    parseList(initial?.diet ?? ""),
+  );
+  const [activityItems, setActivityItems] = useState<string[]>(
+    parseList(initial?.activities ?? ""),
+  );
+  const [accessibilityItems, setAccessibilityItems] = useState<string[]>(
+    parseList(initial?.accessibility ?? ""),
+  );
+  const [calendarConnected, setCalendarConnected] = useState(
+    initial?.calendarConnected ?? false,
+  );
+  const [connectedSources, setConnectedSources] = useState<string[]>(
+    initial?.connectedSources ?? [],
+  );
 
-  function handleSubmit(e: FormEvent) {
-    e.preventDefault();
+  const step: StepId = STEP_IDS[stepIndex] ?? "welcome";
+  const isCelebration = step === "celebration";
+
+  const goForward = useCallback(() => {
+    setDirection("forward");
+    setStepIndex((current) => Math.min(current + 1, STEP_IDS.length - 1));
+  }, []);
+
+  const goBack = useCallback(() => {
+    setDirection("back");
+    setError(null);
+    setStepIndex((current) => Math.max(current - 1, 0));
+  }, []);
+
+  function validateCurrentStep(): boolean {
     setError(null);
 
-    const budgetNum = Number(budget);
-    if (!homeCity.trim()) {
-      setError("Home city is required.");
-      return;
+    if (step === "welcome" && !homeCity.trim()) {
+      setError("Pick a city or type your own — we need a home base!");
+      return false;
     }
-    if (!Number.isFinite(budgetNum) || budgetNum <= 0) {
-      setError("Enter a valid weekend budget.");
-      return;
+    if (step === "diet" && dietItems.length === 0) {
+      setError("Tap at least one diet option (or No restrictions).");
+      return false;
     }
-    if (!diet.trim()) {
-      setError("Diet preferences help us filter restaurants.");
-      return;
-    }
-    if (!activities.trim()) {
-      setError("Pick at least one activity interest.");
-      return;
+    if (step === "activities" && activityItems.length === 0) {
+      setError("Pick at least one vibe — we can't read minds (yet).");
+      return false;
     }
 
+    return true;
+  }
+
+  function handleNext() {
+    if (!validateCurrentStep()) return;
+    goForward();
+  }
+
+  function handleDietToggle(label: string) {
+    setDietItems((current) => {
+      if (label === "No restrictions") {
+        return current.includes(label) ? [] : [label];
+      }
+      const withoutNone = current.filter((item) => item !== "No restrictions");
+      return toggleListItem(withoutNone, label);
+    });
+  }
+
+  const handleFinish = useCallback(() => {
     onComplete(
       createDefaultProfile({
         homeCity: homeCity.trim(),
-        budget: budgetNum,
-        diet: diet.trim(),
-        activities: activities.trim(),
-        accessibility: accessibility.trim() || undefined,
+        budget,
+        diet: joinList(dietItems),
+        activities: joinList(activityItems),
+        accessibility:
+          accessibilityItems.length > 0
+            ? joinList(accessibilityItems)
+            : undefined,
+        calendarConnected: calendarConnected || undefined,
+        connectedSources:
+          connectedSources.length > 0 ? connectedSources : undefined,
       }),
+    );
+  }, [
+    onComplete,
+    homeCity,
+    budget,
+    dietItems,
+    activityItems,
+    accessibilityItems,
+    calendarConnected,
+    connectedSources,
+  ]);
+
+  function handleToggleSource(sourceId: string) {
+    setConnectedSources((current) =>
+      current.includes(sourceId)
+        ? current.filter((id) => id !== sourceId)
+        : [...current, sourceId],
     );
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#202124]/40 p-4 backdrop-blur-sm">
-      <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-3xl bg-white shadow-2xl">
-        <div className="border-b border-[#e8eaed] px-8 py-6">
-          <p className="text-xs font-medium uppercase tracking-widest text-[#1a73e8]">
-            One-time setup
-          </p>
-          <h2 className="mt-2 text-2xl font-medium text-[#202124]">
-            Tell us about your weekends
-          </h2>
-          <p className="mt-2 text-sm text-[#5f6368]">
-            We&apos;ll personalize local events and build plans around your
-            preferences — no big form on every visit.
-          </p>
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-5 px-8 py-6">
-          <Field label="Home city">
-            <input
-              className={inputClass}
-              placeholder="Austin, TX"
-              value={homeCity}
-              onChange={(e) => setHomeCity(e.target.value)}
-            />
-          </Field>
-
-          <Field label="Weekend budget (USD)">
-            <input
-              type="number"
-              min={1}
-              className={inputClass}
-              placeholder="150"
-              value={budget}
-              onChange={(e) => setBudget(e.target.value)}
-            />
-          </Field>
-
-          <Field label="Diet & food preferences">
-            <input
-              className={inputClass}
-              placeholder="Vegan, nut-free, halal…"
-              value={diet}
-              onChange={(e) => setDiet(e.target.value)}
-            />
-          </Field>
-
-          <Field label="What are you into?">
-            <div className="flex flex-wrap gap-2">
-              {ACTIVITY_CHIPS.map((chip) => {
-                const active = activities
-                  .split(",")
-                  .map((s) => s.trim())
-                  .includes(chip);
-                return (
-                  <button
-                    key={chip}
-                    type="button"
-                    onClick={() => toggleChip(chip)}
-                    className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
-                      active
-                        ? "bg-[#1a73e8] text-white"
-                        : "bg-[#f1f3f4] text-[#3c4043] hover:bg-[#e8eaed]"
-                    }`}
-                  >
-                    {chip}
-                  </button>
-                );
-              })}
+    <div
+      className="modal-backdrop fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Profile onboarding"
+    >
+      <div className="animate-slide-up-sheet flex max-h-[92vh] w-full max-w-lg flex-col overflow-hidden rounded-t-3xl bg-surface shadow-2xl sm:animate-slide-up sm:rounded-3xl">
+        {!isCelebration && (
+          <>
+            <div className="border-b border-border pb-4 pt-2">
+              <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-border sm:hidden" />
+              <OnboardingProgress step={stepIndex} />
             </div>
-            <input
-              className={`${inputClass} mt-2`}
-              placeholder="Or type custom interests…"
-              value={activities}
-              onChange={(e) => setActivities(e.target.value)}
-            />
-          </Field>
 
-          <Field label="Accessibility (optional)">
-            <input
-              className={inputClass}
-              placeholder="Wheelchair accessible venues…"
-              value={accessibility}
-              onChange={(e) => setAccessibility(e.target.value)}
-            />
-          </Field>
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              {step === "welcome" && (
+                <WelcomeCityStep
+                  homeCity={homeCity}
+                  onCityChange={setHomeCity}
+                  direction={direction}
+                />
+              )}
+              {step === "budget" && (
+                <BudgetStep
+                  budget={budget}
+                  onBudgetChange={setBudget}
+                  direction={direction}
+                />
+              )}
+              {step === "diet" && (
+                <DietStep
+                  selected={dietItems}
+                  onToggle={handleDietToggle}
+                  direction={direction}
+                />
+              )}
+              {step === "activities" && (
+                <ActivitiesStep
+                  selected={activityItems}
+                  onToggle={(label) =>
+                    setActivityItems((current) => toggleListItem(current, label))
+                  }
+                  direction={direction}
+                />
+              )}
+              {step === "accessibility" && (
+                <AccessibilityStep
+                  selected={accessibilityItems}
+                  onToggle={(label) =>
+                    setAccessibilityItems((current) =>
+                      toggleListItem(current, label),
+                    )
+                  }
+                  direction={direction}
+                />
+              )}
+            </div>
 
-          {error && (
-            <p className="rounded-xl bg-[#fce8e6] px-4 py-3 text-sm text-[#c5221f]">
-              {error}
-            </p>
-          )}
+            {error && (
+              <div className="px-6 pb-2 sm:px-8">
+                <p className="animate-shake rounded-xl bg-coral-soft px-4 py-3 text-sm text-coral-deep">
+                  {error}
+                </p>
+              </div>
+            )}
 
-          <button
-            type="submit"
-            className="w-full rounded-full bg-[#1a73e8] py-3.5 text-sm font-medium text-white transition hover:bg-[#1765cc]"
-          >
-            Start exploring
-          </button>
-        </form>
+            <div className="flex gap-3 border-t border-border px-6 py-5 sm:px-8">
+              {stepIndex > 0 && (
+                <button
+                  type="button"
+                  onClick={goBack}
+                  className="btn-press flex-1 rounded-full border border-border py-3.5 text-sm font-semibold text-foreground transition hover:bg-surface"
+                >
+                  Back
+                </button>
+              )}
+
+              {step === "accessibility" ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={goForward}
+                    className="btn-press flex-1 rounded-full border border-border py-3.5 text-sm font-semibold text-muted transition hover:text-foreground"
+                  >
+                    Skip
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleNext}
+                    className="btn-press flex-1 rounded-full bg-purple py-3.5 text-sm font-semibold text-white shadow-md transition hover:brightness-110"
+                  >
+                    Next →
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleNext}
+                  className="btn-press flex-1 rounded-full bg-purple py-3.5 text-sm font-semibold text-white shadow-md transition hover:brightness-110"
+                >
+                  {step === "welcome" ? "Let's go →" : "Next →"}
+                </button>
+              )}
+            </div>
+          </>
+        )}
+
+        {isCelebration && (
+          <CelebrationStep homeCity={homeCity.trim()} onFinish={handleFinish} />
+        )}
       </div>
     </div>
   );
 }
-
-function Field({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="space-y-2">
-      <label className="text-sm font-medium text-[#3c4043]">{label}</label>
-      {children}
-    </div>
-  );
-}
-
-const inputClass =
-  "w-full rounded-xl border border-[#dadce0] bg-white px-4 py-3 text-sm text-[#202124] outline-none transition focus:border-[#1a73e8] focus:ring-2 focus:ring-[#1a73e8]/20";

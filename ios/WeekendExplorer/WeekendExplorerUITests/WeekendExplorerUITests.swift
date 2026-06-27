@@ -7,6 +7,7 @@ final class WeekendExplorerUITests: XCTestCase {
 
     func testLaunch() throws {
         let app = XCUIApplication()
+        app.launchArguments.append("-uiTesting")
         app.launch()
 
         XCTAssertTrue(app.wait(for: .runningForeground, timeout: 5))
@@ -14,9 +15,10 @@ final class WeekendExplorerUITests: XCTestCase {
 
     func testSignInFlowAccessibilityIdentifiers() throws {
         let app = XCUIApplication()
+        app.launchArguments.append("-uiTesting")
         app.launch()
 
-        let signInView = app.otherElements["signInView"]
+        let signInView = app.descendants(matching: .any)["signInView"]
         XCTAssertTrue(signInView.waitForExistence(timeout: 5))
 
         let signInButton = app.buttons["signInButton"]
@@ -26,6 +28,7 @@ final class WeekendExplorerUITests: XCTestCase {
 
     func testExplorerViewNotVisibleBeforeSignIn() throws {
         let app = XCUIApplication()
+        app.launchArguments.append("-uiTesting")
         app.launch()
 
         let explorerView = app.otherElements["explorerView"]

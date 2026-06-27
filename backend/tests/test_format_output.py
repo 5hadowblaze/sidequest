@@ -28,7 +28,7 @@ def test_write_cited_md_output_shape(
     content = cited_path.read_text(encoding="utf-8")
 
     assert "# Sidequest — Cited Itinerary" in content
-    assert "## Prometheux filter (Vadalog)" in content
+    assert "## Prometheux filter" in content
     assert "**Method:** `sdk`" in content
     assert "**Concept:** `weekend_planner_matches`" in content
     assert "**Candidates in:** 3" in content

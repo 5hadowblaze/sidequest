@@ -1,10 +1,15 @@
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
 import os
 import re
+import threading
+import time
+from contextlib import contextmanager
 from dataclasses import dataclass, field
-from typing import Any, Literal
+from typing import Any, Callable, Generator, Literal, TypeVar
 
 from models import (
     CalendarSlot,
@@ -14,6 +19,17 @@ from models import (
 )
 
 logger = logging.getLogger(__name__)
+
+_prometheux_lock = threading.Lock()
+_last_prometheux_job_end: float = 0.0
+_saved_program_hash: str | None = None
+_saved_run_concept_name: str | None = None
+
+MAX_PROMETHEUX_RETRIES = 8
+MAX_PROMETHEUX_TOTAL_SECONDS = 60.0
+ENGINE_BUSY_BASE_DELAY_S = 2.0
+ENGINE_BUSY_MAX_DELAY_S = 32.0
+MIN_GAP_BETWEEN_JOBS_S = 2.0
 
 FilterMethod = Literal["sdk"]
 CONCEPT_NAME = "weekend_planner_matches"
@@ -133,6 +149,14 @@ class PrometheuxConfigError(Exception):
 
 class PrometheuxSDKError(Exception):
     """Raised when the prometheux_chain SDK call fails."""
+
+
+class PrometheuxEngineBusyError(PrometheuxSDKError):
+    """Raised when the Prometheux engine stays busy after retries."""
+
+    def __init__(self, message: str, *, retry_after_seconds: int = 30) -> None:
+        super().__init__(message)
+        self.retry_after_seconds = retry_after_seconds
 
 
 @dataclass(frozen=True)
@@ -476,52 +500,426 @@ def _load_prometheux_sdk() -> Any:
     return px
 
 
-def _save_concept(px: Any, project_id: str, program: str) -> str:
-    """Save the Vadalog program and return the concept name for run_concept."""
+T = TypeVar("T")
+
+
+@dataclass
+class _PrometheuxCallBudget:
+    """Shared retry/time budget for one Prometheux filter call (save + run)."""
+
+    max_retries: int = MAX_PROMETHEUX_RETRIES
+    max_total_seconds: float = MAX_PROMETHEUX_TOTAL_SECONDS
+    started_at: float = field(default_factory=time.monotonic)
+    retry_count: int = 0
+
+    def elapsed(self) -> float:
+        return time.monotonic() - self.started_at
+
+    def remaining(self) -> float:
+        return max(0.0, self.max_total_seconds - self.elapsed())
+
+    def can_retry(self) -> bool:
+        return self.retry_count < self.max_retries and self.remaining() > 0
+
+
+def _raise_prometheux_gave_up(
+    operation: str,
+    budget: _PrometheuxCallBudget,
+    last_exc: Exception | None,
+) -> None:
+    logger.error(
+        "Prometheux giving up on %s after %d/%d retries (%.1fs elapsed, limit %.1fs): %s",
+        operation,
+        budget.retry_count,
+        budget.max_retries,
+        budget.elapsed(),
+        budget.max_total_seconds,
+        last_exc,
+    )
+    retry_after = min(
+        60,
+        max(5, int(budget.remaining()) if budget.remaining() > 0 else 30),
+    )
+    raise PrometheuxEngineBusyError(
+        f"Prometheux unavailable for {operation} after {budget.retry_count} retries "
+        f"within {budget.elapsed():.1f}s (limit {budget.max_total_seconds:.0f}s). "
+        "Please wait a few seconds and try again.",
+        retry_after_seconds=retry_after,
+    ) from last_exc
+
+
+def _program_hash(program: str) -> str:
+    return hashlib.sha256(program.encode()).hexdigest()
+
+
+def _extract_error_payload(msg: str) -> dict[str, Any] | None:
+    """Best-effort JSON parse from HTTP Error / SDK exception text."""
+    json_match = re.search(r"\{.*\}", msg, re.DOTALL)
+    if not json_match:
+        return None
+    try:
+        payload = json.loads(json_match.group())
+    except json.JSONDecodeError:
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
+def _is_engine_busy_error(exc: Exception) -> bool:
+    msg = str(exc)
+    if "ENGINE_BUSY" in msg:
+        return True
+    lower = msg.lower()
+    if "409" in msg and (
+        "engine is currently busy" in lower
+        or "engine busy" in lower
+        or '"status":"busy"' in lower
+        or "'status': 'busy'" in lower
+    ):
+        return True
+    payload = _extract_error_payload(msg)
+    if payload:
+        data = payload.get("data")
+        if isinstance(data, dict) and data.get("errorCode") == "ENGINE_BUSY":
+            return True
+        if payload.get("status") == "busy":
+            return True
+    return False
+
+
+def _is_concept_overwrite_warning(exc: Exception) -> bool:
+    """409 conflict where the API warns that save will overwrite an existing concept."""
+    if _is_engine_busy_error(exc):
+        return False
+    msg = str(exc).lower()
+    return "409" in msg and (
+        "saving will overwrite" in msg
+        or ("already exists" in msg and "overwrite" in msg)
+    )
+
+
+def _is_concept_exists_conflict(exc: Exception) -> bool:
+    if _is_engine_busy_error(exc):
+        return False
+    if _is_concept_overwrite_warning(exc):
+        return True
+    msg = str(exc).lower()
+    return "409" in msg and "already exists" in msg
+
+
+def _is_concept_not_found_error(exc: Exception) -> bool:
+    msg = str(exc).lower()
+    return "concept" in msg and "not found" in msg
+
+
+def _call_with_budget(
+    budget: _PrometheuxCallBudget,
+    fn: Callable[[], T],
+    *,
+    operation: str,
+) -> T:
+    last_exc: Exception | None = None
+    while True:
+        if budget.elapsed() >= budget.max_total_seconds:
+            _raise_prometheux_gave_up(operation, budget, last_exc)
+
+        try:
+            return fn()
+        except Exception as exc:
+            if not _is_engine_busy_error(exc):
+                raise
+            last_exc = exc
+            if not budget.can_retry():
+                _raise_prometheux_gave_up(operation, budget, last_exc)
+
+            delay = min(
+                ENGINE_BUSY_BASE_DELAY_S * (2**budget.retry_count),
+                ENGINE_BUSY_MAX_DELAY_S,
+                budget.remaining(),
+            )
+            logger.warning(
+                "Prometheux ENGINE_BUSY during %s; retry %d/%d in %.1fs (%.1fs elapsed)",
+                operation,
+                budget.retry_count + 1,
+                budget.max_retries,
+                delay,
+                budget.elapsed(),
+            )
+            budget.retry_count += 1
+            if delay > 0:
+                time.sleep(delay)
+
+
+def _format_sdk_error(exc: Exception) -> str:
+    if isinstance(exc, PrometheuxEngineBusyError) or _is_engine_busy_error(exc):
+        return (
+            "Prometheux inference engine is busy. Requests were retried automatically "
+            "with exponential backoff, but the engine did not become available. "
+            "Wait a few seconds and try again."
+        )
+    msg = str(exc).lower()
+    if any(token in msg for token in ("401", "403", "unauthorized", "invalid token", "authentication")):
+        return (
+            "Prometheux authentication failed. Verify PMTX_TOKEN at "
+            "https://platform.prometheux.ai and ensure it is set in .env.local. "
+            f"Error: {exc}"
+        )
+    if "no_active_compute" in msg or "no active compute" in msg:
+        return (
+            "Prometheux compute is not running. Start compute on the Prometheux platform, "
+            "then retry. "
+            f"Error: {exc}"
+        )
+    return (
+        "Prometheux SDK failed. Verify PMTX_TOKEN at https://platform.prometheux.ai, "
+        "set JARVISPY_URL=https://api.prometheux.ai/jarvispy/{org}/{username}, "
+        "start compute on the Prometheux platform if you see NO_ACTIVE_COMPUTE, "
+        "and set PMTX_PROJECT_ID to your project name or id (default weekend-planner). "
+        f"Error: {exc}"
+    )
+
+
+def _extract_conflicting_concept_name(exc: Exception) -> str | None:
+    match = re.search(r"concept named ['\"]([^'\"]+)['\"]", str(exc), re.IGNORECASE)
+    return match.group(1) if match else None
+
+
+def _run_concept_name_from_save(response: Any) -> str:
+    if isinstance(response, dict):
+        for key in ("id", "concept_name", "predicate_name"):
+            value = response.get(key)
+            if value:
+                return str(value)
+    return OUTPUT_PREDICATE
+
+
+def _overwrite_existing_names(exc: Exception) -> list[str]:
+    """Names to pass as existing_name when Prometheux asks to confirm overwrite."""
+    names: list[str] = []
+    parsed = _extract_conflicting_concept_name(exc)
+    if parsed:
+        names.append(parsed)
+    for candidate in (OUTPUT_PREDICATE, CONCEPT_NAME):
+        if candidate not in names:
+            names.append(candidate)
+    return names
+
+
+def _handle_save_conflict(
+    px: Any,
+    budget: _PrometheuxCallBudget,
+    kwargs: dict[str, Any],
+    exc: Exception,
+) -> str:
+    """On 409: confirm overwrite once with existing_name, else skip save and run only."""
+    existing_name = _overwrite_existing_names(exc)[0]
+    logger.info(
+        "Prometheux 409 conflict (%s); confirming overwrite with existing_name=%s",
+        exc,
+        existing_name,
+    )
+    try:
+        result = _call_with_budget(
+            budget,
+            lambda: px.save_concept(**kwargs, existing_name=existing_name),
+            operation="save_concept(overwrite)",
+        )
+        run_name = _run_concept_name_from_save(result)
+        logger.info(
+            "Prometheux save confirmed (existing_name=%s, run_as=%s)",
+            existing_name,
+            run_name,
+        )
+        return run_name
+    except Exception as retry_exc:
+        if not (
+            _is_concept_overwrite_warning(retry_exc)
+            or _is_concept_exists_conflict(retry_exc)
+        ):
+            raise retry_exc from exc
+        logger.warning(
+            "Prometheux save still conflicting after existing_name=%s (%s); "
+            "skipping save and proceeding to run_concept as %s",
+            existing_name,
+            retry_exc,
+            existing_name,
+        )
+        return existing_name
+
+
+def _save_concept(
+    px: Any,
+    project_id: str,
+    program: str,
+    budget: _PrometheuxCallBudget,
+    *,
+    force: bool = False,
+) -> str:
+    """Save the Vadalog program and return the SDK concept name for run_concept."""
+    global _saved_program_hash, _saved_run_concept_name
+
+    prog_hash = _program_hash(program)
+    if not force and _saved_program_hash is not None and _saved_program_hash == prog_hash:
+        run_name = _saved_run_concept_name or OUTPUT_PREDICATE
+        logger.info(
+            "Prometheux: skipping save_concept (program unchanged, hash=%s, run_as=%s)",
+            prog_hash[:12],
+            run_name,
+        )
+        return run_name
+
     kwargs = {
         "project_id": project_id,
         "definition": program,
         "concept_name": CONCEPT_NAME,
         "output_predicate": OUTPUT_PREDICATE,
     }
-    try:
-        px.save_concept(**kwargs)
-        return CONCEPT_NAME
-    except Exception as exc:
-        msg = str(exc).lower()
-        if "409" not in msg and "already exists" not in msg:
+    saved = False
+
+    def do_save() -> str:
+        nonlocal saved
+        try:
+            result = px.save_concept(**kwargs)
+            saved = True
+            return _run_concept_name_from_save(result)
+        except Exception as exc:
+            if _is_engine_busy_error(exc):
+                raise
+            if _is_concept_overwrite_warning(exc) or _is_concept_exists_conflict(exc):
+                saved = True
+                return _handle_save_conflict(px, budget, kwargs, exc)
             raise
-        logger.info(
-            "Prometheux concept conflict; overwriting existing_name=%s",
-            OUTPUT_PREDICATE,
-        )
-        px.save_concept(**kwargs, existing_name=OUTPUT_PREDICATE)
-        return OUTPUT_PREDICATE
+
+    run_name = _call_with_budget(budget, do_save, operation="save_concept")
+    if saved:
+        _saved_program_hash = prog_hash
+        _saved_run_concept_name = run_name
+    return run_name
+
+
+def _run_concept_with_budget(
+    px: Any,
+    project_id: str,
+    concept_name: str,
+    budget: _PrometheuxCallBudget,
+) -> Any:
+    return _call_with_budget(
+        budget,
+        lambda: px.run_concept(project_id=project_id, concept_name=concept_name),
+        operation=f"run_concept({concept_name})",
+    )
+
+
+@contextmanager
+def _prometheux_job_slot() -> Generator[None, None, None]:
+    """Serialize Prometheux SDK work globally with a minimum gap between jobs."""
+    global _last_prometheux_job_end
+    with _prometheux_lock:
+        now = time.monotonic()
+        if _last_prometheux_job_end > 0:
+            gap = MIN_GAP_BETWEEN_JOBS_S - (now - _last_prometheux_job_end)
+            if gap > 0:
+                logger.info("Prometheux queue: waiting %.1fs before next job", gap)
+                time.sleep(gap)
+        try:
+            yield
+        finally:
+            _last_prometheux_job_end = time.monotonic()
 
 
 def _filter_with_sdk(program: str) -> list[CandidateItem]:
     px = _load_prometheux_sdk()
     project_ref = os.environ.get("PMTX_PROJECT_ID", "weekend-planner").strip() or "weekend-planner"
     project_id = _resolve_project_id(px, project_ref)
+    budget = _PrometheuxCallBudget()
 
     logger.info(
-        "Prometheux SDK: save_concept + run_concept concept=%s project=%s (ref=%s)",
+        "Prometheux SDK: save_concept + run_concept concept=%s project=%s (ref=%s) "
+        "(max %d retries, %.0fs total)",
         CONCEPT_NAME,
         project_id,
         project_ref,
+        budget.max_retries,
+        budget.max_total_seconds,
     )
 
-    try:
-        concept_name = _save_concept(px, project_id, program)
-        result = px.run_concept(project_id=project_id, concept_name=concept_name)
-    except Exception as exc:
-        raise PrometheuxSDKError(
-            "Prometheux SDK failed. Verify PMTX_TOKEN at https://platform.prometheux.ai, "
-            "set JARVISPY_URL=https://api.prometheux.ai/jarvispy/{org}/{username}, "
-            "start compute on the Prometheux platform if you see NO_ACTIVE_COMPUTE, "
-            "and set PMTX_PROJECT_ID to your project name or id (default weekend-planner). "
-            f"Error: {exc}"
-        ) from exc
+    with _prometheux_job_slot():
+        try:
+            run_concept_name = _save_concept(px, project_id, program, budget)
+
+            try:
+                result = _run_concept_with_budget(
+                    px, project_id, run_concept_name, budget
+                )
+            except Exception as run_exc:
+                if not _is_concept_not_found_error(run_exc):
+                    raise
+                if not budget.can_retry():
+                    logger.error(
+                        "Prometheux concept %r not found and retry budget exhausted "
+                        "(%d/%d retries, %.1fs elapsed); giving up",
+                        run_concept_name,
+                        budget.retry_count,
+                        budget.max_retries,
+                        budget.elapsed(),
+                    )
+                    raise PrometheuxSDKError(
+                        f"Prometheux concept {run_concept_name!r} not found and retries exhausted."
+                    ) from run_exc
+
+                fallback_name = (
+                    OUTPUT_PREDICATE
+                    if run_concept_name != OUTPUT_PREDICATE
+                    else CONCEPT_NAME
+                )
+                budget.retry_count += 1
+                if fallback_name != run_concept_name:
+                    logger.warning(
+                        "Prometheux concept %r not found; retrying run_concept as %r",
+                        run_concept_name,
+                        fallback_name,
+                    )
+                    try:
+                        result = _run_concept_with_budget(
+                            px, project_id, fallback_name, budget
+                        )
+                        global _saved_run_concept_name
+                        _saved_run_concept_name = fallback_name
+                    except Exception as fallback_exc:
+                        if not _is_concept_not_found_error(fallback_exc):
+                            raise
+                        run_exc = fallback_exc
+                    else:
+                        run_exc = None
+
+                if run_exc is not None:
+                    if not budget.can_retry():
+                        logger.error(
+                            "Prometheux concept not found after fallback; "
+                            "retry budget exhausted; giving up"
+                        )
+                        raise PrometheuxSDKError(
+                            f"Prometheux concept not found after retries: {run_exc}"
+                        ) from run_exc
+                    logger.warning(
+                        "Prometheux concept %r not found in project %s; "
+                        "forcing one save_concept and retrying run",
+                        run_concept_name,
+                        project_id,
+                    )
+                    global _saved_program_hash
+                    _saved_program_hash = None
+                    _saved_run_concept_name = None
+                    budget.retry_count += 1
+                    run_concept_name = _save_concept(
+                        px, project_id, program, budget, force=True
+                    )
+                    result = _run_concept_with_budget(
+                        px, project_id, run_concept_name, budget
+                    )
+        except PrometheuxEngineBusyError:
+            raise
+        except Exception as exc:
+            raise PrometheuxSDKError(_format_sdk_error(exc)) from exc
 
     rows = _parse_matches_rows(result)
     logger.info("Prometheux SDK returned %d matching rows (deterministic Vadalog)", len(rows))

@@ -27,14 +27,18 @@ export interface ItineraryItem {
 export interface FilterStats {
   candidates_in: number;
   candidates_out: number;
-  filter_method: "sdk";
+  filter_method: "sdk" | "demo";
   concept_name: string;
 }
+
+export type EditableItineraryField = "time" | "venue" | "activity" | "diet_access";
 
 export interface PlanResult {
   itinerary: ItineraryItem[];
   cited_path: string;
   trace_id?: string | null;
+  /** Client-only id for confirm/edit persistence when trace_id is absent. */
+  client_id?: string;
   filter_stats: FilterStats;
 }
 
@@ -55,14 +59,14 @@ export interface DiscoverEvent {
   date_hint?: string | null;
   passed_rules?: string[];
   prometheux_verified?: boolean;
-  filter_method?: "sdk" | null;
+  filter_method?: "sdk" | "demo" | null;
   match_score?: number | null;
 }
 
 export interface DiscoverResponse {
   location: string;
   events: DiscoverEvent[];
-  source: "tavily" | "mock";
+  source: "tavily" | "mock" | "demo";
   center_lat?: number | null;
   center_lng?: number | null;
   filter_stats?: FilterStats | null;
@@ -74,6 +78,8 @@ export interface UserProfile {
   diet: string;
   activities: string;
   accessibility?: string;
+  calendarConnected?: boolean;
+  connectedSources?: string[];
   onboardingComplete: boolean;
   updatedAt: string;
 }
@@ -89,4 +95,6 @@ export interface DiscoverParams {
   location: string;
   profile?: UserProfile | null;
   calendarSlots?: CalendarSlot[];
+  /** When set, overrides profile.activities for this discover request. */
+  activities?: string;
 }

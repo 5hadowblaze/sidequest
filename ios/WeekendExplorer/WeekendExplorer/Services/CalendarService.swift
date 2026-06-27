@@ -58,12 +58,13 @@ struct CalendarService: Sendable {
 
         let weekendDates = nextTwoWeekendDates()
         guard
-            let rangeStart = startOfDay(weekendDates.first ?? Date()),
             let lastDay = weekendDates.last,
             let rangeEnd = calendar.date(byAdding: .day, value: 1, to: startOfDay(lastDay))
         else {
             return Self.mockWeekendFreeSlots()
         }
+
+        let rangeStart = startOfDay(weekendDates.first ?? Date())
 
         let predicate = store.predicateForEvents(withStart: rangeStart, end: rangeEnd, calendars: nil)
         let events = store.events(matching: predicate)

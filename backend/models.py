@@ -55,7 +55,7 @@ class ItineraryItem(BaseModel):
 class FilterStats(BaseModel):
     candidates_in: int
     candidates_out: int
-    filter_method: Literal["sdk"]
+    filter_method: Literal["sdk", "demo"]
     concept_name: str = "weekend_planner_matches"
 
 
@@ -81,14 +81,14 @@ class DiscoverEvent(BaseModel):
     date_hint: Optional[str] = None
     passed_rules: list[str] = Field(default_factory=list)
     prometheux_verified: bool = False
-    filter_method: Optional[Literal["sdk"]] = None
+    filter_method: Optional[Literal["sdk", "demo"]] = None
     match_score: Optional[int] = None
 
 
 class DiscoverResponse(BaseModel):
     location: str
     events: list[DiscoverEvent]
-    source: Literal["tavily", "mock"] = "tavily"
+    source: Literal["tavily", "mock", "demo"] = "tavily"
     center_lat: Optional[float] = None
     center_lng: Optional[float] = None
     filter_stats: Optional[FilterStats] = None

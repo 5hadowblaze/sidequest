@@ -56,7 +56,7 @@ The app opens to **Sidequest** — a map-first experience for discovering local 
 
 | Flow | What happens |
 |------|----------------|
-| **Sign in** | Google via Firebase (`frontend/lib/auth.ts`). Requests `calendar.readonly` scope; access token stored in session for free-slot lookup. Falls back to mock auth + localStorage when Firebase env vars are unset. |
+| **Sign in** | Google via Firebase (`frontend/lib/auth.ts`). The Google account picker shows app name **Sidequest** (not “Perfect Weekend Planner”); “continue to” may still show `localhost` or `perfect-weekend-planner.firebaseapp.com`. Requests `calendar.readonly` scope; access token stored in session for free-slot lookup. Falls back to mock auth + localStorage when Firebase env vars are unset. See `Design.md` → Google Sign-In branding. |
 | **Onboarding** | One-time profile modal (`ProfileOnboarding`) — home city, budget, diet, activities, accessibility. Saved to Firestore `users/{uid}` (or localStorage in mock mode). |
 | **Calendar** | `frontend/lib/calendar.ts` calls Google Calendar `freeBusy` for upcoming Sat/Sun, derives morning / afternoon / evening free slots. Mock slots when calendar token unavailable. |
 | **Discover** | `SidequestExplorer` → `GET /api/discover` → FastAPI `/discover` with profile constraints + `calendar_slots` JSON. Tavily search + Prometheux Vadalog filter; cards show `passed_rules` badges (Budget, Location, Diet, Free saturday afternoon, …). |
@@ -91,6 +91,14 @@ Restart the backend after updating env vars.
 
 Copy `.env.example` to `.env.local` (repo root). **MPP is off by default** — no wallet setup needed for the demo.
 
+For hackathon demos when Prometheux returns `ENGINE_BUSY` or APIs are flaky, add to `.env.local`:
+
+```bash
+USE_DEMO_DATA=true
+```
+
+This serves rich seeded events (London, NYC, Austin, etc.) with local rule badges and demo weekend plans — no Tavily/Gemini/Prometheux required. Leave unset (or `false`) to use the live path when keys are configured.
+
 ```bash
 # Terminal 1 — backend
 cd backend && python -m venv .venv && source .venv/bin/activate
@@ -120,9 +128,10 @@ Verify backend:
 
 | Variable | Required | Notes |
 |----------|----------|-------|
-| `GEMINI_API_KEY` | yes | Itinerary formatting |
-| `TAVILY_API_KEY` | yes | Live search |
-| `PMTX_TOKEN` | yes | Prometheux SDK — Vadalog filter gate |
+| `USE_DEMO_DATA` | no | Set `true` for seeded demo events/plans (bypasses live APIs) |
+| `GEMINI_API_KEY` | yes* | Itinerary formatting (*not required when `USE_DEMO_DATA=true`) |
+| `TAVILY_API_KEY` | yes* | Live search (*not required when `USE_DEMO_DATA=true`) |
+| `PMTX_TOKEN` | yes* | Prometheux SDK — Vadalog filter gate (*not required when `USE_DEMO_DATA=true`) |
 | `JARVISPY_URL` | maybe | JarvisPy endpoint if SDK requires it |
 | `PMTX_PROJECT_ID` | no | Defaults to `weekend-planner` |
 | `LANGFUSE_*` | optional | Tracing |

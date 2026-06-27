@@ -66,7 +66,7 @@ struct PlanResultsSheet: View {
 
     private func filterStatsBanner(_ stats: FilterStats) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("Prometheux Vadalog gate")
+            Text("Prometheux gate")
                 .font(.subheadline.weight(.medium))
                 .foregroundStyle(BrandTheme.accentDark)
 

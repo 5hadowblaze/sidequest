@@ -11,7 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from agent import run_weekend_planner
 from discover import discover_local_events, parse_calendar_slots
 from models import CalendarSlot, DiscoverResponse, PlanRequest, PlanResult, UserConstraintContext
-from prometheux_filter import PrometheuxConfigError, PrometheuxSDKError
+from prometheux_filter import PrometheuxConfigError, PrometheuxEngineBusyError, PrometheuxSDKError
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(ROOT_DIR / ".env.local")
@@ -20,9 +20,18 @@ load_dotenv(Path(__file__).resolve().parent / ".env")
 
 app = FastAPI(title="Sidequest", version="0.1.0")
 
+_default_origins = [
+    "http://localhost:3000",
+    "https://perfect-weekend-planner.web.app",
+    "https://perfect-weekend-planner.firebaseapp.com",
+    "https://weekend-explorer--perfect-weekend-planner.us-central1.hosted.app",
+]
+_extra_origins = os.environ.get("CORS_ORIGINS", "")
+_cors_origins = _default_origins + [o.strip() for o in _extra_origins.split(",") if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=_cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -76,12 +85,18 @@ def discover(
         return discover_local_events(location.strip(), context=context)
     except PrometheuxConfigError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except PrometheuxEngineBusyError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=str(exc),
+            headers={"Retry-After": str(exc.retry_after_seconds)},
+        ) from exc
     except PrometheuxSDKError as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
 
 @app.post("/plan", response_model=PlanResult)
