@@ -14,6 +14,7 @@ from auth import require_firebase_user
 from discover import discover_local_events, parse_calendar_slots
 from models import CalendarSlot, DiscoverResponse, PlanRequest, PlanResult, UserConstraintContext
 from prometheux_filter import PrometheuxConfigError, PrometheuxEngineBusyError, PrometheuxSDKError
+from rate_limit import check_rate_limit
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +55,7 @@ def health() -> dict[str, bool]:
 
 @app.get("/discover", response_model=DiscoverResponse)
 def discover(
-    _user: Annotated[dict, Depends(require_firebase_user)],
+    user: Annotated[dict, Depends(require_firebase_user)],
     location: str,
     budget: Optional[float] = Query(default=None, gt=0),
     diet: Optional[str] = Query(default=None),
@@ -65,6 +66,8 @@ def discover(
         description='JSON array e.g. [{"date":"saturday","period":"afternoon"}]',
     ),
 ) -> DiscoverResponse:
+    check_rate_limit(user["uid"], "discover", limit=30)
+
     if not location.strip():
         raise HTTPException(status_code=400, detail="location query parameter is required")
 
@@ -114,8 +117,10 @@ def discover(
 @app.post("/plan", response_model=PlanResult)
 def plan(
     request: PlanRequest,
-    _user: Annotated[dict, Depends(require_firebase_user)],
+    user: Annotated[dict, Depends(require_firebase_user)],
 ) -> PlanResult:
+    check_rate_limit(user["uid"], "plan", limit=10)
+
     missing = [
         key
         for key in ("GEMINI_API_KEY", "TAVILY_API_KEY", "PMTX_TOKEN")

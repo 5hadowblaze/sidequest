@@ -1,10 +1,10 @@
 import { NextRequest } from "next/server";
 
 import { fetchBackend } from "@/lib/server/backend-fetch";
-import { verifyRequestAuth } from "@/lib/server/auth";
+import { verifyApiRequest } from "@/lib/server/auth";
 
 export async function GET(request: NextRequest) {
-  const authResult = await verifyRequestAuth(request);
+  const authResult = await verifyApiRequest(request);
   if (authResult instanceof Response) {
     return authResult;
   }

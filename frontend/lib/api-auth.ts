@@ -1,6 +1,47 @@
 "use client";
 
-import { getFirebaseAuth, isFirebaseConfigured } from "./firebase";
+import { getToken } from "firebase/app-check";
+
+import { isMockAuthAllowed } from "./auth-policy";
+import { getFirebaseAppCheck, getFirebaseAuth, isFirebaseConfigured } from "./firebase";
+
+export class AuthenticationRequiredError extends Error {
+  constructor(message = "Sign in required to use this feature.") {
+    super(message);
+    this.name = "AuthenticationRequiredError";
+  }
+}
+
+export function requireAuthenticatedUser(): void {
+  if (isMockAuthAllowed()) {
+    return;
+  }
+
+  if (!isFirebaseConfigured()) {
+    throw new AuthenticationRequiredError(
+      "Sign-in is unavailable: Firebase is not configured for this environment.",
+    );
+  }
+
+  if (!getFirebaseAuth().currentUser) {
+    throw new AuthenticationRequiredError();
+  }
+}
+
+
+async function getAppCheckHeader(): Promise<Record<string, string>> {
+  const appCheck = getFirebaseAppCheck();
+  if (!appCheck) {
+    return {};
+  }
+
+  try {
+    const { token } = await getToken(appCheck, false);
+    return { "X-Firebase-AppCheck": token };
+  } catch {
+    return {};
+  }
+}
 
 export async function getAuthHeaders(
   forceRefresh = false,
@@ -14,12 +55,19 @@ export async function getAuthHeaders(
     return {};
   }
 
-  const token = await user.getIdToken(forceRefresh);
-  return { Authorization: `Bearer ${token}` };
+  const [idToken, appCheckHeaders] = await Promise.all([
+    user.getIdToken(forceRefresh),
+    getAppCheckHeader(),
+  ]);
+
+  return {
+    Authorization: `Bearer ${idToken}`,
+    ...appCheckHeaders,
+  };
 }
 
 /**
- * fetch wrapper that attaches a Firebase ID token and retries once on 401.
+ * fetch wrapper that attaches Firebase auth + App Check headers and retries once on 401.
  */
 export async function fetchWithAuth(
   input: RequestInfo | URL,
@@ -40,10 +88,13 @@ export async function fetchWithAuth(
   });
 
   if (response.status === 401 && isFirebaseConfigured()) {
-    response = await fetch(input, {
-      ...init,
-      headers: await buildHeaders(true),
-    });
+    const user = getFirebaseAuth().currentUser;
+    if (user) {
+      response = await fetch(input, {
+        ...init,
+        headers: await buildHeaders(true),
+      });
+    }
   }
 
   return response;

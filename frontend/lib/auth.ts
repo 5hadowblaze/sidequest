@@ -14,6 +14,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { getFirebaseAuth, isFirebaseConfigured } from "./firebase";
 import { getGoogleAccessToken, storeGoogleAccessToken } from "./calendar";
+import { isMockAuthAllowed } from "./auth-policy";
 import type { AuthUser } from "./types";
 
 
@@ -27,10 +28,7 @@ export const GOOGLE_CALENDAR_READONLY_SCOPE =
 const MOCK_USER_KEY = "sidequest-mock-user";
 const LEGACY_MOCK_USER_KEY = "weekend-explorer-mock-user";
 
-/** Mock auth is allowed only in local development when Firebase is not configured. */
-export function isMockAuthAllowed(): boolean {
-  return process.env.NODE_ENV === "development" && !isFirebaseConfigured();
-}
+export { isMockAuthAllowed } from "./auth-policy";
 
 /** Google sign-in — Firebase default scopes only (email, profile, openid). */
 const googleSignInProvider = new GoogleAuthProvider();

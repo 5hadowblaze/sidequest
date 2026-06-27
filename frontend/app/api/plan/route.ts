@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 
 import { mppx } from "@/lib/mppx";
 import { fetchBackend } from "@/lib/server/backend-fetch";
-import { verifyRequestAuth } from "@/lib/server/auth";
+import { verifyApiRequest } from "@/lib/server/auth";
 
 /** MPP is scaffolded only — skipped by default for hackathon demos. Set SKIP_MPP=false to enable. */
 function isMppEnabled(): boolean {
@@ -43,7 +43,7 @@ async function proxyToBackend(request: NextRequest): Promise<Response> {
 }
 
 export async function POST(request: NextRequest) {
-  const authResult = await verifyRequestAuth(request);
+  const authResult = await verifyApiRequest(request);
   if (authResult instanceof Response) {
     return authResult;
   }

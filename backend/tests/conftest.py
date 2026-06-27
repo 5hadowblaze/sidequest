@@ -129,6 +129,15 @@ def api_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("PMTX_TOKEN", "test-pmtx-token")
 
 
+@pytest.fixture(autouse=True)
+def reset_rate_limiter() -> Generator[None, None, None]:
+    from rate_limit import rate_limiter
+
+    rate_limiter._buckets.clear()
+    yield
+    rate_limiter._buckets.clear()
+
+
 @pytest.fixture
 def client() -> Generator[TestClient, None, None]:
     from auth import require_firebase_user

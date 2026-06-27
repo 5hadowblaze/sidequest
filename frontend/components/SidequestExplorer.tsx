@@ -154,6 +154,11 @@ export default function SidequestExplorer() {
       activitiesOverride?: string,
       uid?: string,
     ) => {
+      if (!uid && !isMockAuth) {
+        setDiscoverError("Sign in required to discover events.");
+        return;
+      }
+
       discoverAbortRef.current?.abort();
       const controller = new AbortController();
       discoverAbortRef.current = controller;
@@ -202,7 +207,7 @@ export default function SidequestExplorer() {
         }
       }
     },
-    [applyDiscoverResult],
+    [applyDiscoverResult, isMockAuth],
   );
 
   const handleQuickSearch = useCallback(
@@ -282,6 +287,11 @@ export default function SidequestExplorer() {
 
   async function handlePlanWeekend(event: DiscoverEvent) {
     if (!profile) return;
+    if (!user && !isMockAuth) {
+      setPlanError("Sign in required to plan your weekend.");
+      return;
+    }
+
     setPlanError(null);
     setPlanResult(null);
     setPlanDraft(null);

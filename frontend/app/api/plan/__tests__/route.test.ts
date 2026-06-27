@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const chargeMock = vi.fn();
-const verifyRequestAuthMock = vi.fn();
+const verifyApiRequestMock = vi.fn();
 const fetchBackendMock = vi.fn();
 
 vi.mock("@/lib/mppx", () => ({
@@ -14,7 +14,7 @@ vi.mock("@/lib/mppx", () => ({
 }));
 
 vi.mock("@/lib/server/auth", () => ({
-  verifyRequestAuth: (...args: unknown[]) => verifyRequestAuthMock(...args),
+  verifyApiRequest: (...args: unknown[]) => verifyApiRequestMock(...args),
 }));
 
 vi.mock("@/lib/server/backend-fetch", () => ({
@@ -42,7 +42,7 @@ describe("POST /api/plan", () => {
     vi.stubEnv("BACKEND_URL", "http://backend.test");
     vi.stubEnv("SKIP_MPP", "true");
     chargeMock.mockReset();
-    verifyRequestAuthMock.mockResolvedValue({
+    verifyApiRequestMock.mockResolvedValue({
       uid: "user-1",
       email: "user@example.com",
     });
@@ -52,12 +52,12 @@ describe("POST /api/plan", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.unstubAllEnvs();
-    verifyRequestAuthMock.mockReset();
+    verifyApiRequestMock.mockReset();
     fetchBackendMock.mockReset();
   });
 
   it("returns 401 when auth verification fails", async () => {
-    verifyRequestAuthMock.mockResolvedValue(
+    verifyApiRequestMock.mockResolvedValue(
       Response.json({ detail: "Authentication required" }, { status: 401 }),
     );
 

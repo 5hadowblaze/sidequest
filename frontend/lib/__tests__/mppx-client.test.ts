@@ -1,18 +1,14 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { PlanRequest, PlanResult } from "../types";
 
-vi.mock("mppx/client", () => ({
-  Mppx: { create: vi.fn() },
-  tempo: { charge: vi.fn() },
-}));
-
-vi.mock("viem/accounts", () => ({
-  privateKeyToAccount: vi.fn(),
+vi.mock("../auth-policy", () => ({
+  isMockAuthAllowed: vi.fn(() => true),
 }));
 
 vi.mock("../api-auth", () => ({
   fetchWithAuth: (...args: Parameters<typeof fetch>) => fetch(...args),
+  requireAuthenticatedUser: vi.fn(),
 }));
 
 import { planWeekend } from "../mppx-client";
@@ -46,16 +42,11 @@ const planResult: PlanResult = {
 };
 
 describe("planWeekend", () => {
-  beforeEach(() => {
-    vi.stubEnv("NEXT_PUBLIC_SKIP_MPP", "true");
-  });
-
   afterEach(() => {
     vi.unstubAllGlobals();
-    vi.unstubAllEnvs();
   });
 
-  it("POSTs to /api/plan and returns PlanResult", async () => {
+  it("POSTs to /api/plan via fetchWithAuth and returns PlanResult", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => planResult,
@@ -85,17 +76,5 @@ describe("planWeekend", () => {
     );
 
     await expect(planWeekend(planRequest)).rejects.toThrow("Invalid budget");
-  });
-
-  it("uses plain fetch when NEXT_PUBLIC_SKIP_MPP is not false", async () => {
-    vi.stubEnv("NEXT_PUBLIC_SKIP_MPP", "true");
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => planResult,
-    });
-    vi.stubGlobal("fetch", fetchMock);
-
-    await planWeekend(planRequest);
-    expect(fetchMock).toHaveBeenCalledOnce();
   });
 });

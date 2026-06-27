@@ -1,4 +1,4 @@
-import { fetchWithAuth } from "./api-auth";
+import { fetchWithAuth, requireAuthenticatedUser } from "./api-auth";
 import type { CalendarSlot, DiscoverParams, DiscoverResponse, UserProfile } from "./types";
 
 export class DiscoverError extends Error {
@@ -28,6 +28,8 @@ export async function fetchDiscoverEvents(
   params: DiscoverParams,
   signal?: AbortSignal,
 ): Promise<DiscoverResponse> {
+  requireAuthenticatedUser();
+
   const searchParams = new URLSearchParams({
     location: params.location,
   });

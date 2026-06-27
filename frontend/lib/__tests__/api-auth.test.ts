@@ -1,12 +1,22 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const getIdTokenMock = vi.fn();
+const getTokenMock = vi.fn();
+
+vi.mock("firebase/app-check", () => ({
+  getToken: (...args: unknown[]) => getTokenMock(...args),
+}));
 
 vi.mock("../firebase", () => ({
   isFirebaseConfigured: vi.fn(() => true),
   getFirebaseAuth: vi.fn(() => ({
     currentUser: { getIdToken: getIdTokenMock },
   })),
+  getFirebaseAppCheck: vi.fn(() => ({ app: "check" })),
+}));
+
+vi.mock("../auth-policy", () => ({
+  isMockAuthAllowed: vi.fn(() => false),
 }));
 
 import { fetchWithAuth, getAuthHeaders } from "../api-auth";
@@ -17,20 +27,24 @@ describe("getAuthHeaders", () => {
     vi.clearAllMocks();
   });
 
-  it("returns Authorization header when user is signed in", async () => {
+  it("returns Authorization and App Check headers when user is signed in", async () => {
     getIdTokenMock.mockResolvedValue("firebase-id-token");
+    getTokenMock.mockResolvedValue({ token: "app-check-token" });
 
     await expect(getAuthHeaders()).resolves.toEqual({
       Authorization: "Bearer firebase-id-token",
+      "X-Firebase-AppCheck": "app-check-token",
     });
     expect(getIdTokenMock).toHaveBeenCalledWith(false);
   });
 
   it("requests a refreshed token when forceRefresh is true", async () => {
     getIdTokenMock.mockResolvedValue("refreshed-token");
+    getTokenMock.mockResolvedValue({ token: "app-check-token" });
 
     await expect(getAuthHeaders(true)).resolves.toEqual({
       Authorization: "Bearer refreshed-token",
+      "X-Firebase-AppCheck": "app-check-token",
     });
     expect(getIdTokenMock).toHaveBeenCalledWith(true);
   });
@@ -52,6 +66,7 @@ describe("fetchWithAuth", () => {
     getIdTokenMock
       .mockResolvedValueOnce("stale-token")
       .mockResolvedValueOnce("fresh-token");
+    getTokenMock.mockResolvedValue({ token: "app-check-token" });
 
     const fetchMock = vi
       .fn()

@@ -1,7 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+vi.mock("../auth-policy", () => ({
+  isMockAuthAllowed: vi.fn(() => true),
+}));
+
 vi.mock("../api-auth", () => ({
   fetchWithAuth: (...args: Parameters<typeof fetch>) => fetch(...args),
+  requireAuthenticatedUser: vi.fn(),
 }));
 
 import {

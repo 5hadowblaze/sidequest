@@ -1,47 +1,18 @@
-import { Mppx, tempo } from "mppx/client";
-import { privateKeyToAccount } from "viem/accounts";
-
-import { fetchWithAuth } from "./api-auth";
+import { fetchWithAuth, requireAuthenticatedUser } from "./api-auth";
 import type { PlanRequest, PlanResult } from "./types";
 
-/** MPP is scaffolded only — skipped by default. Set SKIP_MPP=false + wallet keys to enable. */
-function isMppEnabled(): boolean {
-  return process.env.NEXT_PUBLIC_SKIP_MPP === "false";
-}
-
-let paidFetch: typeof fetch | null = null;
-
-function getPaidFetch(): typeof fetch {
-  if (paidFetch) {
-    return paidFetch;
-  }
-
-  const privateKey = process.env.NEXT_PUBLIC_MPP_CLIENT_KEY as
-    | `0x${string}`
-    | undefined;
-
-  if (!privateKey) {
-    return fetch;
-  }
-
-  const account = privateKeyToAccount(privateKey);
-  const client = Mppx.create({
-    methods: [tempo.charge({ account })],
-    polyfill: false,
-  });
-
-  paidFetch = client.fetch.bind(client);
-  return paidFetch;
-}
-
+/**
+ * Plans a weekend via the server-side API route.
+ * MPP wallet signing stays server-side only (`frontend/lib/mppx.ts`).
+ */
 export async function planWeekend(
   request: PlanRequest,
   onStatus?: (status: "planning") => void,
 ): Promise<PlanResult> {
+  requireAuthenticatedUser();
   onStatus?.("planning");
 
-  const fetchFn = isMppEnabled() ? getPaidFetch() : fetchWithAuth;
-  const response = await fetchFn("/api/plan", {
+  const response = await fetchWithAuth("/api/plan", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(request),

@@ -136,7 +136,7 @@ Design.md     # Full PDD + architecture
 | Location | Variables |
 |----------|-----------|
 | **Root `.env.local`** | Backend / agent: `USE_DEMO_DATA`, `GEMINI_API_KEY`, `TAVILY_API_KEY`, `PMTX_TOKEN`, `JARVISPY_URL`, `PMTX_PROJECT_ID`, `LANGFUSE_*`, `BACKEND_URL`, `SKIP_MPP`, `MPP_*` |
-| **`frontend/.env.local`** | Browser / Next.js: `NEXT_PUBLIC_*`, `NEXT_PUBLIC_ENABLE_DEMO`, `NEXT_PUBLIC_USE_DEMO_DATA`, `NEXT_PUBLIC_FIREBASE_*`, `BACKEND_URL`, `SKIP_MPP` |
+| **`frontend/.env.local`** | Browser / Next.js: `NEXT_PUBLIC_*`, `NEXT_PUBLIC_ENABLE_DEMO`, `NEXT_PUBLIC_USE_DEMO_DATA`, `NEXT_PUBLIC_FIREBASE_*`, `NEXT_PUBLIC_RECAPTCHA_ENTERPRISE_SITE_KEY`, `BACKEND_URL`, `SKIP_MPP` |
 
 ### Demo flags
 
@@ -157,7 +157,8 @@ Design.md     # Full PDD + architecture
 | `JARVISPY_URL` | maybe | `https://api.prometheux.ai/jarvispy/{org}/{username}` |
 | `PMTX_PROJECT_ID` | no | Defaults to `weekend-planner` |
 | `LANGFUSE_*` | optional | Tracing |
-| `MPP_*` | optional | Set `SKIP_MPP=false` to enable payment gate |
+| `MPP_*` | optional | Set `SKIP_MPP=false` to enable payment gate. **Wallet keys are server-only** (`MPP_SECRET_KEY` in App Hosting secrets) — never use `NEXT_PUBLIC_*` for private keys. |
+| `NEXT_PUBLIC_RECAPTCHA_ENTERPRISE_SITE_KEY` | optional | Firebase App Check (reCAPTCHA Enterprise). Enforced in production when set; skipped in local dev if unset. |
 
 ## Prometheux setup (live path)
 
@@ -173,7 +174,8 @@ Restart the backend after updating env vars. If Prometheux is unavailable (`ENGI
 
 ## Verify locally
 
-- `curl http://localhost:8000/health` → `{ "ok": true }`
+- `curl http://localhost:8000/health` → `{ "ok": true }` (backend; IAM-gated on Cloud Run)
+- `curl http://localhost:3000/api/health` → `{ "ok": true }` (App Hosting uptime probe — no auth)
 - Discover with constraints:  
   `curl "http://localhost:8000/discover?location=Austin,%20TX&budget=150&diet=vegan&activities=music&calendar_slots=%5B%7B%22date%22%3A%22saturday%22%2C%22period%22%3A%22afternoon%22%7D%5D"`
 - `cited.md` at repo root after planning lists verified candidates + itinerary
@@ -263,7 +265,7 @@ gcloud run services add-iam-policy-binding weekend-api \
 
 Set `BACKEND_URL` in `frontend/apphosting.yaml` to the Cloud Run service URL, then redeploy the frontend.
 
-**Auth flow (Option C):** clients → App Hosting `/api/*` (Firebase ID token verified by Next.js + `firebase-admin`) → Cloud Run `/discover` and `/plan` (Firebase token re-verified by FastAPI via `Authorization` or `X-Firebase-Authorization`; App Hosting attaches a Google OIDC token for Cloud Run IAM). `/health` stays unauthenticated for probes.
+**Auth flow (Option C):** clients → App Hosting `/api/*` (Firebase ID token + App Check verified by Next.js + `firebase-admin`) → Cloud Run `/discover` and `/plan` (Firebase token re-verified by FastAPI via `Authorization` or `X-Firebase-Authorization`; App Hosting attaches a Google OIDC token for Cloud Run IAM). `/health` on Cloud Run stays unauthenticated for internal probes; use **`GET /api/health`** on App Hosting for external uptime monitors.
 
 **Deploy order:** (1) Cloud Run backend with `--no-allow-unauthenticated`, (2) grant `roles/run.invoker` to App Hosting SA, (3) deploy App Hosting frontend with updated `BACKEND_URL`.
 
