@@ -72,3 +72,17 @@ Leverage these partners to fulfill your 3-tool minimum and maximize your chances
 - [ ] Agent payment rail integrated (x402, MPP, CDP, or agentic.market)
 - [ ] Live demo ready (no slides for the 3-minute pitch)
 - [ ] Devpost: demo video + public GitHub repo + completed project details
+
+---
+
+## How Sidequest meets this
+
+| Requirement | Sidequest implementation |
+|-------------|-------------------------|
+| **Autonomous agent on the open web** | Tavily live search enriched by Luma API + Eventbrite scraping; agent orchestrates discover → filter → plan |
+| **≥ 3 sponsor tools** | **Tavily**, **Prometheux**, **Gemini**, **Langfuse** (ClickHouse-backed), **Firebase** — integrated in application logic, not bolt-on |
+| **Mandatory `cited.md`** | Every plan writes filter stats, verified candidates, itinerary, and source URLs to repo-root `cited.md` |
+| **Agent payment rail** | **MPP** scaffold on `/api/plan` (`SKIP_MPP=true` default for hackathon; enable with MPP keys) |
+| **Live functional demo** | **`demo` branch** — Firebase App Hosting at `https://weekend-explorer--perfect-weekend-planner.us-central1.hosted.app` with guided **Live Demo** UI; backend on Cloud Run with `USE_DEMO_DATA=true` for reliability |
+| **Prometheux track** | Deterministic logic filter gate before Gemini; `filter_stats.filter_method` shows `sdk` (live) or `demo` (seeded fallback) |
+| **Pitch assets** | `VIDEO_PITCH.md` script on the `demo` branch; no slides required — screen recording of working app |

@@ -1,6 +1,8 @@
 # Sidequest — iOS
 
-Native SwiftUI app for **Sidequest** (the Multiagents Hackathon June 2026 project). It talks to the FastAPI backend at `/discover` and `/plan`, uses Firebase Auth + Firestore, and reads Google Calendar for free weekend slots.
+Native SwiftUI app for **Sidequest** (the Multiagents Hackathon June 2026 project). The Xcode target folder is still named **WeekendExplorer** (legacy naming from an earlier scaffold). It talks to the FastAPI backend at `/discover` and `/plan`, uses Firebase Auth + Firestore, and reads Google Calendar for free weekend slots.
+
+> **Hackathon demo path:** The web app (`frontend/`) is the primary demo surface. The iOS app is optional and not required for the live pitch or App Hosting deploy.
 
 ## Prerequisites
 
