@@ -1,0 +1,13 @@
+// Sidequest build configuration
+//
+// BACKEND_URL — override with your Mac's LAN IP when testing on a physical device.
+//   Local dev (direct FastAPI):        http://127.0.0.1:8000
+//   Production (App Hosting /api proxy): https://weekend-explorer--perfect-weekend-planner.us-central1.hosted.app/api
+//
+// Note: xcconfig treats // as a comment, so the scheme+host must be escaped as
+// $()-free. We store only host:port style values here without inline comments.
+
+BACKEND_URL = http:/$()/127.0.0.1:8000
+
+// Set your Apple Developer team id in Xcode → Signing & Capabilities, or here.
+DEVELOPMENT_TEAM =

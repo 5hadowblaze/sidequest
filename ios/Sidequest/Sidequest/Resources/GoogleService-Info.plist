@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+	  PLACEHOLDER Firebase config.
+	  This file keeps the project buildable and forces the app into DEMO mode
+	  (AppConfig detects CLIENT_ID == "PLACEHOLDER").
+
+	  To go LIVE, replace this file with the real one from the Firebase console:
+	    firebase apps:sdkconfig IOS <APP_ID> --project perfect-weekend-planner \
+	      > ios/Sidequest/Sidequest/Resources/GoogleService-Info.plist
+	  then set CFBundleURLSchemes in Info.plist to the REVERSED_CLIENT_ID value.
+	-->
+	<key>CLIENT_ID</key>
+	<string>PLACEHOLDER</string>
+	<key>REVERSED_CLIENT_ID</key>
+	<string>com.googleusercontent.apps.PLACEHOLDER</string>
+	<key>API_KEY</key>
+	<string>PLACEHOLDER</string>
+	<key>GCM_SENDER_ID</key>
+	<string>000000000000</string>
+	<key>PLIST_VERSION</key>
+	<string>1</string>
+	<key>BUNDLE_ID</key>
+	<string>com.perfectweekendplanner.sidequest</string>
+	<key>PROJECT_ID</key>
+	<string>perfect-weekend-planner</string>
+	<key>STORAGE_BUCKET</key>
+	<string>perfect-weekend-planner.appspot.com</string>
+	<key>IS_ADS_ENABLED</key>
+	<false/>
+	<key>IS_ANALYTICS_ENABLED</key>
+	<false/>
+	<key>IS_APPINVITE_ENABLED</key>
+	<true/>
+	<key>IS_GCM_ENABLED</key>
+	<true/>
+	<key>IS_SIGNIN_ENABLED</key>
+	<true/>
+	<key>GOOGLE_APP_ID</key>
+	<string>1:000000000000:ios:PLACEHOLDER</string>
+</dict>
+</plist>

@@ -1,9 +1,0 @@
-// Sidequest build configuration
-// Override BACKEND_URL with your Mac's LAN IP when testing on a physical device.
-//
-// Local dev (direct FastAPI): http://127.0.0.1:8000
-// Production (App Hosting /api proxy):
-//   https://weekend-explorer--perfect-weekend-planner.us-central1.hosted.app/api
-
-BACKEND_URL = http://127.0.0.1:8000
-DEVELOPMENT_TEAM =
