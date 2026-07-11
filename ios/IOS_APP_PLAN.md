@@ -99,6 +99,15 @@ xcodebuild test -scheme Sidequest \
   -destination 'platform=iOS Simulator,name=iPhone 17 Pro'
 ```
 
+## Validation performed here
+
+- Swift models cross-checked field-for-field against `backend/models.py`.
+- Liquid Glass API usage verified against the official iOS 26 `glassEffect` / `Glass` signatures.
+- **Compiled the Foundation-only code** (`Models.swift`, `APIClient.swift`, `AppConfig.swift`)
+  with the **Swift 6.1 toolchain on Linux** and ran the model + API-URL tests: **9/9 passing**
+  (JSON decode, snake_case encode, discover URL building, rule-badge formatting). Remaining
+  files depend on SwiftUI / MapKit / EventKit / Firebase and require macOS + Xcode 26.
+
 ## Status checklist
 
 - [x] Remove legacy `ios/WeekendExplorer`

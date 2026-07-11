@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
 /// Client-side discover query, serialized into `GET /discover` query items.
 struct DiscoverQuery: Sendable {
