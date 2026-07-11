@@ -7,10 +7,10 @@ import CoreLocation
 @Observable
 final class ExplorerViewModel {
     // Services
-    let auth: AuthService
-    private let profiles = ProfileService()
-    private let calendar = CalendarService()
-    private lazy var api: APIClient = {
+    @ObservationIgnored let auth: AuthService
+    @ObservationIgnored private let profiles = ProfileService()
+    @ObservationIgnored private let calendar = CalendarService()
+    @ObservationIgnored private lazy var api: APIClient = {
         let authRef = auth
         return APIClient(tokenProvider: { forceRefresh in
             try await authRef.idToken(forceRefresh: forceRefresh)

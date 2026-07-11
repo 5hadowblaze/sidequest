@@ -37,9 +37,6 @@ struct ExplorerView: View {
             }
         }
         .accessibilityIdentifier("explorerView")
-        .sheet(isPresented: onboardingBinding) {
-            OnboardingView()
-        }
         .sheet(item: selectionItemBinding) { event in
             EventDetailView(event: event)
         }
@@ -68,6 +65,9 @@ struct ExplorerView: View {
         .overlay(Capsule().strokeBorder(.white.opacity(0.08), lineWidth: 0.75))
         .padding(.horizontal, Space.lg)
         .padding(.top, Space.sm)
+        .sheet(isPresented: onboardingBinding) {
+            OnboardingView()
+        }
     }
 
     // MARK: - Bindings

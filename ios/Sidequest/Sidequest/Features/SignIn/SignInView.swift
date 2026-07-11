@@ -87,8 +87,9 @@ struct SignInView: View {
         isSigningIn = true
         Task {
             do {
+                // On success, RootView switches to ExplorerView, whose `.task`
+                // runs bootstrap (profile → calendar → discover).
                 try await vm.auth.signIn()
-                await vm.bootstrap()
             } catch {
                 errorMessage = error.localizedDescription
             }

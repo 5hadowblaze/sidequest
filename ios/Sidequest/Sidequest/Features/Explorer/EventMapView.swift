@@ -28,7 +28,6 @@ struct EventMapView: View {
             }
         }
         .mapStyle(.standard(elevation: .realistic, pointsOfInterest: .excludingAll))
-        .mapControlVisibility(.hidden)
         .onAppear { recenter(to: center) }
         .onChange(of: [center.latitude, center.longitude]) { _, _ in recenter(to: center) }
         .onChange(of: selectedID) { _, id in focus(on: id) }
