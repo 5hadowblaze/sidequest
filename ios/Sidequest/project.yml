@@ -1,0 +1,100 @@
+name: Sidequest
+options:
+  bundleIdPrefix: com.perfectweekendplanner
+  deploymentTarget:
+    iOS: "26.0"
+  createIntermediateGroups: true
+  groupSortPosition: top
+
+configFiles:
+  Debug: Config.xcconfig
+  Release: Config.xcconfig
+
+settings:
+  base:
+    SWIFT_VERSION: "5.10"
+    MARKETING_VERSION: "1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    DEVELOPMENT_TEAM: $(DEVELOPMENT_TEAM)
+    OTHER_LDFLAGS:
+      - -ObjC
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    SWIFT_STRICT_CONCURRENCY: minimal
+
+packages:
+  Firebase:
+    url: https://github.com/firebase/firebase-ios-sdk
+    minVersion: "11.0.0"
+  GoogleSignIn:
+    url: https://github.com/google/GoogleSignIn-iOS
+    minVersion: "8.0.0"
+
+targets:
+  Sidequest:
+    type: application
+    platform: iOS
+    sources:
+      - path: Sidequest
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.perfectweekendplanner.sidequest
+        PRODUCT_NAME: Sidequest
+        INFOPLIST_FILE: Sidequest/Resources/Info.plist
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        ENABLE_PREVIEWS: YES
+        GENERATE_INFOPLIST_FILE: NO
+    dependencies:
+      - package: Firebase
+        product: FirebaseAuth
+      - package: Firebase
+        product: FirebaseCore
+      - package: Firebase
+        product: FirebaseFirestore
+      - package: GoogleSignIn
+        product: GoogleSignIn
+
+  SidequestTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: SidequestTests
+    dependencies:
+      - target: Sidequest
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.perfectweekendplanner.sidequest.tests
+        GENERATE_INFOPLIST_FILE: YES
+
+  SidequestUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: SidequestUITests
+    dependencies:
+      - target: Sidequest
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.perfectweekendplanner.sidequest.uitests
+        GENERATE_INFOPLIST_FILE: YES
+
+schemes:
+  Sidequest:
+    build:
+      targets:
+        Sidequest: all
+        SidequestTests: [test]
+        SidequestUITests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - SidequestTests
+        - SidequestUITests
+    profile:
+      config: Release
+    analyze:
+      config: Debug
+    archive:
+      config: Release
